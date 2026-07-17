@@ -12,6 +12,7 @@ interface DeviceConfigRow {
   pid_ki: number;
   pid_kd: number;
   pid_window_ms: number;
+  control_sensor_address: string | null;
   active_profile_id: number | null;
   profile_started_at: number | null;
   override_expires_at: number | null;
@@ -27,6 +28,7 @@ function toDeviceConfig(row: DeviceConfigRow): DeviceConfig {
     minOffTimeMs: row.min_off_time_ms,
     pidGains: { kp: row.pid_kp, ki: row.pid_ki, kd: row.pid_kd },
     pidWindowMs: row.pid_window_ms,
+    controlSensorAddress: row.control_sensor_address,
     overrideExpiresAt: row.override_expires_at,
   };
 }
@@ -82,9 +84,9 @@ export function updateDeviceConfig(
   db.prepare(
     `INSERT INTO device_configs
        (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms,
-        pid_kp, pid_ki, pid_kd, pid_window_ms, override_expires_at, updated_at)
+        pid_kp, pid_ki, pid_kd, pid_window_ms, control_sensor_address, override_expires_at, updated_at)
      VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs,
-             @pidKp, @pidKi, @pidKd, @pidWindowMs, @overrideExpiresAt, unixepoch())
+             @pidKp, @pidKi, @pidKd, @pidWindowMs, @controlSensorAddress, @overrideExpiresAt, unixepoch())
      ON CONFLICT(device_id) DO UPDATE SET
        setpoint_c = excluded.setpoint_c,
        hysteresis_c = excluded.hysteresis_c,
@@ -95,6 +97,7 @@ export function updateDeviceConfig(
        pid_ki = excluded.pid_ki,
        pid_kd = excluded.pid_kd,
        pid_window_ms = excluded.pid_window_ms,
+       control_sensor_address = excluded.control_sensor_address,
        override_expires_at = excluded.override_expires_at,
        updated_at = unixepoch()`,
   ).run({
@@ -108,6 +111,7 @@ export function updateDeviceConfig(
     pidKi: next.pidGains.ki,
     pidKd: next.pidGains.kd,
     pidWindowMs: next.pidWindowMs,
+    controlSensorAddress: next.controlSensorAddress ?? null,
     overrideExpiresAt: next.overrideExpiresAt ?? null,
   });
 
