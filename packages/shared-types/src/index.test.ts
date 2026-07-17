@@ -3,8 +3,10 @@ import {
   CreateDeviceRequestSchema,
   DeviceConfigSchema,
   DeviceSchema,
+  ProfileSchema,
   StatusPayloadSchema,
   TelemetryPayloadSchema,
+  UpdateDeviceConfigRequestSchema,
   WsMessageSchema,
   parseTopic,
   statusTopic,
@@ -65,8 +67,36 @@ describe("DeviceConfigSchema", () => {
       mode: "thermostat",
       minOnTimeMs: 60000,
       minOffTimeMs: 60000,
+      pidGains: { kp: 0, ki: 0, kd: 0 },
+      pidWindowMs: 300000,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("accepts pid mode with gains", () => {
+    const result = DeviceConfigSchema.safeParse({
+      setpointC: 18.5,
+      hysteresisC: 0.5,
+      mode: "pid",
+      minOnTimeMs: 60000,
+      minOffTimeMs: 60000,
+      pidGains: { kp: 10, ki: 0.5, kd: 2 },
+      pidWindowMs: 300000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a non-positive pidWindowMs", () => {
+    const result = DeviceConfigSchema.safeParse({
+      setpointC: 18.5,
+      hysteresisC: 0.5,
+      mode: "pid",
+      minOnTimeMs: 60000,
+      minOffTimeMs: 60000,
+      pidGains: { kp: 10, ki: 0.5, kd: 2 },
+      pidWindowMs: 0,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects non-positive hysteresis", () => {
@@ -76,6 +106,8 @@ describe("DeviceConfigSchema", () => {
       mode: "thermostat",
       minOnTimeMs: 60000,
       minOffTimeMs: 60000,
+      pidGains: { kp: 0, ki: 0, kd: 0 },
+      pidWindowMs: 300000,
     });
     expect(result.success).toBe(false);
   });
@@ -119,6 +151,50 @@ describe("StatusPayloadSchema", () => {
       firmwareVersion: "0.1.0",
       uptimeS: -1,
       ts: 1700000000000,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("UpdateDeviceConfigRequestSchema", () => {
+  it("accepts a partial update with only mode", () => {
+    expect(UpdateDeviceConfigRequestSchema.safeParse({ mode: "pid" }).success).toBe(true);
+  });
+
+  it("accepts activateProfileId alongside a partial update", () => {
+    const result = UpdateDeviceConfigRequestSchema.safeParse({ activeProfileId: 5 });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts explicitly clearing the active profile", () => {
+    const result = UpdateDeviceConfigRequestSchema.safeParse({ activeProfileId: null });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("ProfileSchema", () => {
+  it("accepts a profile with multiple steps", () => {
+    const result = ProfileSchema.safeParse({
+      id: 1,
+      deviceId: "fermenter-01",
+      name: "Diacetyl rest",
+      steps: [
+        { atMinutes: 0, targetC: 18 },
+        { atMinutes: 4320, targetC: 18 },
+        { atMinutes: 4320, targetC: 20 },
+      ],
+      createdAt: 1700000000000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a profile with zero steps", () => {
+    const result = ProfileSchema.safeParse({
+      id: 1,
+      deviceId: "fermenter-01",
+      name: "Empty",
+      steps: [],
+      createdAt: 1700000000000,
     });
     expect(result.success).toBe(false);
   });
