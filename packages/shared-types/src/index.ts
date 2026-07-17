@@ -2,6 +2,7 @@ export * from "./device.js";
 export * from "./device-config.js";
 export * from "./device-sensor.js";
 export * from "./profile.js";
+export * from "./tap.js";
 export * from "./telemetry.js";
 export * from "./status.js";
 export * from "./ws.js";

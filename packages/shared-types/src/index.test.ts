@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   CreateDeviceRequestSchema,
+  CreateTapRequestSchema,
   DeviceConfigSchema,
   DeviceSchema,
   DeviceSensorSchema,
+  FlowReadingSchema,
+  PourEventSchema,
   ProfileSchema,
   SensorReadingSchema,
   StatusPayloadSchema,
+  TapSchema,
   TelemetryPayloadSchema,
   UpdateDeviceConfigRequestSchema,
   UpdateDeviceSensorRequestSchema,
+  UpdateTapRequestSchema,
   WsMessageSchema,
   parseTopic,
   statusTopic,
@@ -167,6 +172,110 @@ describe("TelemetryPayloadSchema", () => {
     const result = TelemetryPayloadSchema.safeParse({
       ts: 1700000000000,
       sensors: [{ address: "28FF641F0417033A", temperatureC: 18.2 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("defaults flows to an empty array when omitted (backward compat)", () => {
+    const result = TelemetryPayloadSchema.parse({
+      deviceId: "fermenter-01",
+      ts: 1700000000000,
+      sensors: [],
+    });
+    expect(result.flows).toEqual([]);
+  });
+
+  it("accepts flow readings", () => {
+    const result = TelemetryPayloadSchema.safeParse({
+      deviceId: "kegerator-01",
+      ts: 1700000000000,
+      sensors: [],
+      flows: [
+        { index: 0, pulseCount: 1523 },
+        { index: 1, pulseCount: 0 },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("FlowReadingSchema", () => {
+  it("rejects an out-of-range index", () => {
+    expect(FlowReadingSchema.safeParse({ index: 9, pulseCount: 0 }).success).toBe(false);
+    expect(FlowReadingSchema.safeParse({ index: -1, pulseCount: 0 }).success).toBe(false);
+  });
+
+  it("rejects a negative pulse count", () => {
+    expect(FlowReadingSchema.safeParse({ index: 0, pulseCount: -1 }).success).toBe(false);
+  });
+});
+
+describe("TapSchema", () => {
+  it("accepts a fully-populated tap", () => {
+    const result = TapSchema.safeParse({
+      id: 1,
+      deviceId: "kegerator-01",
+      flowIndex: 0,
+      name: "House IPA",
+      style: "IPA",
+      abv: 6.2,
+      ibu: 55,
+      notes: "Dry-hopped with Citra",
+      imageUrl: null,
+      pulsesPerLiter: 450,
+      fullVolumeMl: 19000,
+      remainingVolumeMl: 12000,
+      createdAt: 1700000000000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a non-positive pulsesPerLiter", () => {
+    const result = TapSchema.safeParse({
+      id: 1,
+      deviceId: "kegerator-01",
+      flowIndex: 0,
+      name: "House IPA",
+      style: null,
+      abv: null,
+      ibu: null,
+      notes: null,
+      imageUrl: null,
+      pulsesPerLiter: 0,
+      fullVolumeMl: 19000,
+      remainingVolumeMl: 19000,
+      createdAt: 1700000000000,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("CreateTapRequestSchema / UpdateTapRequestSchema", () => {
+  it("requires flowIndex, name, pulsesPerLiter, fullVolumeMl", () => {
+    expect(CreateTapRequestSchema.safeParse({}).success).toBe(false);
+    expect(
+      CreateTapRequestSchema.safeParse({
+        flowIndex: 0,
+        name: "House IPA",
+        pulsesPerLiter: 450,
+        fullVolumeMl: 19000,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts resetKeg on an otherwise-empty update", () => {
+    expect(UpdateTapRequestSchema.safeParse({ resetKeg: true }).success).toBe(true);
+  });
+});
+
+describe("PourEventSchema", () => {
+  it("rejects a non-positive volume", () => {
+    const result = PourEventSchema.safeParse({
+      id: 1,
+      tapId: 1,
+      volumeMl: 0,
+      startedAt: 1700000000000,
+      endedAt: 1700000001000,
     });
     expect(result.success).toBe(false);
   });
