@@ -8,6 +8,7 @@
 #include "SensorAddress.h"
 #include "ConfigStore.h"
 #include "MqttClientWrapper.h"
+#include "FlowMeterManager.h"
 #include "pins.h"
 #include "secrets.h"
 
@@ -16,6 +17,7 @@ using unibrew::ControlLoop;
 using unibrew::ControlMode;
 using unibrew::ControlOutput;
 using unibrew::ConfigStore;
+using unibrew::FlowMeterManager;
 using unibrew::MqttClientWrapper;
 using unibrew::SensorManager;
 using unibrew::SensorSample;
@@ -57,6 +59,8 @@ SensorBus sensorBuses[] = {
     {&towerSensor, TOWER_SENSE_PIN},
 };
 constexpr size_t kSensorBusCount = sizeof(sensorBuses) / sizeof(sensorBuses[0]);
+
+FlowMeterManager flowMeterManager;
 
 uint32_t lastTelemetryMs = 0;
 uint32_t lastStatusMs = 0;
@@ -205,13 +209,13 @@ void connectWiFi() {
     }
 }
 
-void publishTelemetry(const SensorSample* samples, size_t count) {
+void publishTelemetry(const SensorSample* samples, size_t sensorCount) {
     JsonDocument doc;
     doc["deviceId"] = DEVICE_ID;
     doc["ts"] = static_cast<uint64_t>(millis());
 
     JsonArray sensorsArray = doc["sensors"].to<JsonArray>();
-    for (size_t i = 0; i < count; i++) {
+    for (size_t i = 0; i < sensorCount; i++) {
         JsonObject s = sensorsArray.add<JsonObject>();
         char hex[kSensorAddressHexLength + 1];
         unibrew::formatSensorAddress(samples[i].address, hex, sizeof(hex));
@@ -223,7 +227,14 @@ void publishTelemetry(const SensorSample* samples, size_t count) {
         }
     }
 
-    char buf[512];
+    JsonArray flowsArray = doc["flows"].to<JsonArray>();
+    for (size_t i = 0; i < flowMeterManager.count(); i++) {
+        JsonObject f = flowsArray.add<JsonObject>();
+        f["index"] = static_cast<unsigned>(i);
+        f["pulseCount"] = flowMeterManager.pulseCount(i);
+    }
+
+    char buf[768];
     size_t len = serializeJson(doc, buf, sizeof(buf));
     (void)len;
     mqttClient.publishTelemetry(buf);
@@ -268,6 +279,8 @@ void setup() {
     }
     Serial.printf("[sensors] discovered %u of %u possible sensor(s)\n",
                   static_cast<unsigned>(totalDiscovered), static_cast<unsigned>(kSensorBusCount));
+
+    flowMeterManager.begin(FLOW_PINS, kFlowPinCount);
 
     connectWiFi();
 
