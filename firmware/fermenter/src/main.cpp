@@ -154,6 +154,19 @@ float selectControlTemperature(const SensorSample* samples, size_t count) {
     return samples[0].temperatureC;
 }
 
+// Drives the two relay outputs from ControlLoop's decision. Safe by
+// construction: ControlOutput is a single enum value, so HEATING and
+// COOLING can never both be requested at once — this function still writes
+// both pins explicitly every call (not just the changed one) so a missed
+// update can never leave a relay stuck from a prior state.
+void applyRelayOutput(ControlOutput output) {
+    bool heatingOn = (output == ControlOutput::HEATING);
+    bool coolingOn = (output == ControlOutput::COOLING);
+
+    digitalWrite(HEATING_RELAY_PIN, heatingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
+    digitalWrite(COOLING_RELAY_PIN, coolingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
+}
+
 void connectWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
         return;
@@ -224,6 +237,10 @@ void setup() {
     esp_task_wdt_init(kWatchdogTimeoutS, true);
     esp_task_wdt_add(nullptr);
 
+    pinMode(HEATING_RELAY_PIN, OUTPUT);
+    pinMode(COOLING_RELAY_PIN, OUTPUT);
+    applyRelayOutput(ControlOutput::IDLE); // safe default before any control decision has run
+
     configStore.begin();
     controlLoop.setConfig(configStore.load());
 
@@ -252,7 +269,8 @@ void loop() {
         SensorSample samples[unibrew::kMaxSensors];
         size_t count = sensorManager.readAll(samples, unibrew::kMaxSensors);
         float controlTemperatureC = selectControlTemperature(samples, count);
-        controlLoop.update(controlTemperatureC, now);
+        ControlOutput output = controlLoop.update(controlTemperatureC, now);
+        applyRelayOutput(output);
         publishTelemetry(samples, count);
     }
 
