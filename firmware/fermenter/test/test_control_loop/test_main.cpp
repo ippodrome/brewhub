@@ -7,6 +7,7 @@ using unibrew::ControlConfig;
 using unibrew::ControlLoop;
 using unibrew::ControlMode;
 using unibrew::ControlOutput;
+using unibrew::PidGains;
 
 namespace {
 float nan_temp() { return std::numeric_limits<float>::quiet_NaN(); }
@@ -190,6 +191,149 @@ void test_behavior_stays_consistent_across_many_updates_with_unchanged_config(vo
     }
 }
 
+void test_pid_mode_heating_demand_turns_on_heating_within_window(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    // error=5, pidOutput=10*5=50 -> on for 50% of the 1000ms window.
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 0));
+}
+
+void test_pid_mode_cooling_demand_turns_on_cooling_within_window(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 15.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg); // coolingEnabled defaults true
+
+    // error=-5, pidOutput=-50 -> cooling demand.
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(20.0f, 0));
+}
+
+void test_pid_mode_respects_heating_disabled_even_with_positive_pid_output(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = false; // PID wants to heat, but it's disabled
+    cfg.coolingEnabled = false;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 0));
+}
+
+void test_pid_mode_time_proportions_on_then_off_within_window(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    // onDuration = 1000 * (50/100) = 500ms within this window.
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 0));
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 300)); // still within on-portion
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 600));    // past on-portion, same window
+}
+
+void test_pid_mode_new_window_recomputes_from_current_temperature(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.coolingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 0)); // below setpoint
+
+    // Window boundary reached (elapsed >= 1000ms): PID recomputes using the
+    // NEW temperature, now above setpoint, flipping the direction entirely —
+    // proving this is a fresh computation, not a stale carried-over window.
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(26.0f, 1000));
+}
+
+void test_pid_mode_respects_min_on_time_before_leaving_heating(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 5000; // longer than the window itself
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 0));
+    // Window logic wants to turn off at the 500ms mark, but min-on-time (5s)
+    // must win — compressor/heater protection overrides PID time-proportioning.
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 600));
+}
+
+void test_pid_mode_holds_last_output_on_invalid_reading(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.coolingEnabled = false;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(20.0f, 0));
+    // The mode-agnostic invalid-reading fail-safe must still apply in PID mode.
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(nan_temp(), 100));
+}
+
+void test_switching_modes_resets_pid_integral_state(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{0.0f, 1.0f, 0.0f}; // integral-only, for clear detection
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    loop.update(20.0f, 0);    // seeds PID's internal history, error=5, output=0 (first call, kp=0)
+    loop.update(20.0f, 1000); // integral accumulates (error*dt=5), output becomes nonzero (HEATING)
+
+    ControlConfig thermostatCfg = cfg;
+    thermostatCfg.mode = ControlMode::THERMOSTAT;
+    loop.setConfig(thermostatCfg); // mode change #1 -> resets PID state
+
+    ControlConfig backToPid = cfg;
+    loop.setConfig(backToPid); // mode change #2, back to PID -> resets again
+
+    // If the integral from the earlier PID session had survived, this would
+    // compute a nonzero (HEATING) output. Because it was reset, this behaves
+    // exactly like PidController's fresh first call: proportional-only, and
+    // kp=0 here, so the result must be exactly IDLE.
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 2000));
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_new_controlloop_uses_safe_default_config);
@@ -210,5 +354,13 @@ int main(int argc, char **argv) {
     RUN_TEST(test_recovers_normal_control_after_reading_resumes);
     RUN_TEST(test_config_update_takes_effect_on_next_update_call);
     RUN_TEST(test_behavior_stays_consistent_across_many_updates_with_unchanged_config);
+    RUN_TEST(test_pid_mode_heating_demand_turns_on_heating_within_window);
+    RUN_TEST(test_pid_mode_cooling_demand_turns_on_cooling_within_window);
+    RUN_TEST(test_pid_mode_respects_heating_disabled_even_with_positive_pid_output);
+    RUN_TEST(test_pid_mode_time_proportions_on_then_off_within_window);
+    RUN_TEST(test_pid_mode_new_window_recomputes_from_current_temperature);
+    RUN_TEST(test_pid_mode_respects_min_on_time_before_leaving_heating);
+    RUN_TEST(test_pid_mode_holds_last_output_on_invalid_reading);
+    RUN_TEST(test_switching_modes_resets_pid_integral_state);
     return UNITY_END();
 }

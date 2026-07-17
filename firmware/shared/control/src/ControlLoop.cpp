@@ -13,12 +13,21 @@ ControlLoop::ControlLoop(const ControlConfig& config)
     , coolingLastOffMs_(std::numeric_limits<uint32_t>::max())
     , invalidSinceMs_(std::numeric_limits<uint32_t>::max())
     , hasEverValidReading_(false)
+    , pid_(config.pidGains)
 {
 }
 
 void ControlLoop::setConfig(const ControlConfig& config)
 {
+    bool modeChanged = (config.mode != config_.mode);
     config_ = config;
+    pid_.setGains(config_.pidGains);
+    if (modeChanged) {
+        // Stale accumulated integral/window state from a previous mode
+        // must not leak into the newly selected one.
+        pid_.reset();
+        pidWindowInitialized_ = false;
+    }
 }
 
 const ControlConfig& ControlLoop::config() const
@@ -85,6 +94,103 @@ void ControlLoop::transitionTo(ControlOutput next, uint32_t nowMs)
     lastTransitionMs_ = nowMs;
 }
 
+ControlOutput ControlLoop::desiredThermostat(float temperatureC) const
+{
+    const float low  = config_.setpointC - config_.hysteresisC;
+    const float high = config_.setpointC + config_.hysteresisC;
+
+    // Classic hysteresis: inside the deadband, hold whatever output_ already is.
+    ControlOutput desired = output_;
+
+    if (temperatureC > high) {
+        if (config_.coolingEnabled) {
+            desired = ControlOutput::COOLING;
+        } else if (output_ == ControlOutput::HEATING) {
+            desired = ControlOutput::IDLE;
+        }
+    } else if (temperatureC < low) {
+        if (config_.heatingEnabled) {
+            desired = ControlOutput::HEATING;
+        } else if (output_ == ControlOutput::COOLING) {
+            desired = ControlOutput::IDLE;
+        }
+    }
+
+    return desired;
+}
+
+ControlOutput ControlLoop::desiredPid(float temperatureC, uint32_t nowMs)
+{
+    bool windowElapsed = pidWindowInitialized_ &&
+        (nowMs - pidWindowStartMs_) >= config_.pidWindowMs;
+
+    if (!pidWindowInitialized_ || windowElapsed) {
+        float pidOutput = pid_.update(config_.setpointC, temperatureC, nowMs);
+
+        if (pidOutput > 0.0f && config_.heatingEnabled) {
+            pidWindowDirection_ = ControlOutput::HEATING;
+        } else if (pidOutput < 0.0f && config_.coolingEnabled) {
+            pidWindowDirection_ = ControlOutput::COOLING;
+        } else {
+            pidWindowDirection_ = ControlOutput::IDLE;
+        }
+
+        if (pidWindowDirection_ == ControlOutput::IDLE) {
+            pidWindowOnDurationMs_ = 0;
+        } else {
+            float magnitude = pidOutput < 0.0f ? -pidOutput : pidOutput;
+            pidWindowOnDurationMs_ = static_cast<uint32_t>(
+                static_cast<float>(config_.pidWindowMs) * (magnitude / 100.0f));
+        }
+
+        pidWindowStartMs_ = nowMs;
+        pidWindowInitialized_ = true;
+    }
+
+    uint32_t elapsedInWindow = nowMs - pidWindowStartMs_;
+    return (elapsedInWindow < pidWindowOnDurationMs_) ? pidWindowDirection_ : ControlOutput::IDLE;
+}
+
+void ControlLoop::applyDesired(ControlOutput desired, uint32_t nowMs)
+{
+    // Leaving HEATING or COOLING → IDLE (or switching sides via IDLE conceptually):
+    // must satisfy min-on before leaving active state.
+    if (desired == output_) {
+        return;
+    }
+
+    if (output_ == ControlOutput::HEATING || output_ == ControlOutput::COOLING) {
+        if (!canLeaveActive(nowMs)) {
+            return; // hold until min-on elapsed
+        }
+    }
+
+    if (desired == ControlOutput::HEATING) {
+        if (!canEnterHeating(nowMs)) {
+            if (output_ != ControlOutput::IDLE) {
+                transitionTo(ControlOutput::IDLE, nowMs);
+            }
+            return;
+        }
+        transitionTo(ControlOutput::HEATING, nowMs);
+        return;
+    }
+
+    if (desired == ControlOutput::COOLING) {
+        if (!canEnterCooling(nowMs)) {
+            if (output_ != ControlOutput::IDLE) {
+                transitionTo(ControlOutput::IDLE, nowMs);
+            }
+            return;
+        }
+        transitionTo(ControlOutput::COOLING, nowMs);
+        return;
+    }
+
+    // desired == IDLE
+    transitionTo(ControlOutput::IDLE, nowMs);
+}
+
 ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
 {
     // Mode OFF: always idle, ignore temperature and timing.
@@ -97,7 +203,7 @@ ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
         return output_;
     }
 
-    // Invalid reading handling (NaN or out of plausible range).
+    // Invalid reading handling (NaN or out of plausible range) — mode-agnostic.
     if (!isValidReading(temperatureC)) {
         if (invalidSinceMs_ == std::numeric_limits<uint32_t>::max()) {
             invalidSinceMs_ = nowMs;
@@ -117,73 +223,11 @@ ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
     invalidSinceMs_ = std::numeric_limits<uint32_t>::max();
     hasEverValidReading_ = true;
 
-    const float low  = config_.setpointC - config_.hysteresisC;
-    const float high = config_.setpointC + config_.hysteresisC;
+    ControlOutput desired = (config_.mode == ControlMode::PID)
+        ? desiredPid(temperatureC, nowMs)
+        : desiredThermostat(temperatureC);
 
-    // Desired action from temperature vs deadband (classic hysteresis).
-    // Inside deadband: hold current output (no chattering).
-    ControlOutput desired = output_;
-
-    if (temperatureC > high) {
-        // Above band: want cooling if enabled, otherwise idle (stop heating if on).
-        if (config_.coolingEnabled) {
-            desired = ControlOutput::COOLING;
-        } else if (output_ == ControlOutput::HEATING) {
-            desired = ControlOutput::IDLE;
-        }
-        // else: stay as-is (IDLE or already COOLING) when cooling disabled
-    } else if (temperatureC < low) {
-        // Below band: want heating if enabled, otherwise idle (stop cooling if on).
-        if (config_.heatingEnabled) {
-            desired = ControlOutput::HEATING;
-        } else if (output_ == ControlOutput::COOLING) {
-            desired = ControlOutput::IDLE;
-        }
-    }
-    // else: within deadband — desired remains current output_
-
-    // Apply min-on / min-off gates. Hold current output until gates allow transition.
-    if (desired == output_) {
-        return output_;
-    }
-
-    // Leaving HEATING or COOLING → IDLE (or switching sides via IDLE conceptually):
-    // must satisfy min-on before leaving active state.
-    if (output_ == ControlOutput::HEATING || output_ == ControlOutput::COOLING) {
-        if (!canLeaveActive(nowMs)) {
-            return output_; // hold until min-on elapsed
-        }
-    }
-
-    // Direct heat↔cool switch is not representable as simultaneous; we go via the
-    // desired state. If switching from one active mode to the other, treat as:
-    // leave active (min-on already checked) then enter the other (min-off of that side).
-    if (desired == ControlOutput::HEATING) {
-        if (!canEnterHeating(nowMs)) {
-            // Cannot enter heating yet — if we were active, we may still go IDLE;
-            // if already IDLE, hold IDLE.
-            if (output_ != ControlOutput::IDLE) {
-                transitionTo(ControlOutput::IDLE, nowMs);
-            }
-            return output_;
-        }
-        transitionTo(ControlOutput::HEATING, nowMs);
-        return output_;
-    }
-
-    if (desired == ControlOutput::COOLING) {
-        if (!canEnterCooling(nowMs)) {
-            if (output_ != ControlOutput::IDLE) {
-                transitionTo(ControlOutput::IDLE, nowMs);
-            }
-            return output_;
-        }
-        transitionTo(ControlOutput::COOLING, nowMs);
-        return output_;
-    }
-
-    // desired == IDLE
-    transitionTo(ControlOutput::IDLE, nowMs);
+    applyDesired(desired, nowMs);
     return output_;
 }
 
