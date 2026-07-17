@@ -5,6 +5,7 @@ import type { AppConfig } from "./config/env.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { authPlugin } from "./plugins/auth.plugin.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { devicesRoutes } from "./routes/devices.routes.js";
 
 export interface AppDeps {
   db: Database.Database;
@@ -26,6 +27,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await fastify.register(healthRoutes);
   await fastify.register(authRoutes);
+  await fastify.register(devicesRoutes);
 
   return fastify;
 }
