@@ -1,0 +1,310 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <ArduinoJson.h>
+#include <esp_task_wdt.h>
+
+#include "ControlLoop.h"
+#include "SensorManager.h"
+#include "SensorAddress.h"
+#include "ConfigStore.h"
+#include "MqttClientWrapper.h"
+#include "pins.h"
+#include "secrets.h"
+
+using unibrew::ControlConfig;
+using unibrew::ControlLoop;
+using unibrew::ControlMode;
+using unibrew::ControlOutput;
+using unibrew::ConfigStore;
+using unibrew::MqttClientWrapper;
+using unibrew::SensorManager;
+using unibrew::SensorSample;
+using unibrew::kSensorAddressHexLength;
+
+namespace {
+
+constexpr uint32_t kTelemetryIntervalMs = 2000;
+constexpr uint32_t kStatusIntervalMs = 30000;
+constexpr uint32_t kWatchdogTimeoutS = 30;
+constexpr float kMinPlausibleC = -50.0f;
+constexpr float kMaxPlausibleC = 150.0f;
+
+ControlLoop controlLoop;
+ConfigStore configStore;
+MqttClientWrapper mqttClient;
+
+// Keg Cop wires each sensor role to its own separate OneWire bus (see
+// pins.h) rather than a shared bus — one SensorManager per pin, each
+// expected to discover 0 or 1 sensor. Upper chamber is listed first since
+// it's the most sensible default control input for the cooling loop before
+// a user explicitly picks one via the Sensors UI.
+SensorManager upperChamberSensor;
+SensorManager lowerChamberSensor;
+SensorManager kegSensor;
+SensorManager roomSensor;
+SensorManager towerSensor;
+
+struct SensorBus {
+    SensorManager* manager;
+    uint8_t pin;
+};
+
+SensorBus sensorBuses[] = {
+    {&upperChamberSensor, UPPER_CHAMBER_SENSE_PIN},
+    {&lowerChamberSensor, LOWER_CHAMBER_SENSE_PIN},
+    {&kegSensor, KEG_SENSE_PIN},
+    {&roomSensor, ROOM_SENSE_PIN},
+    {&towerSensor, TOWER_SENSE_PIN},
+};
+constexpr size_t kSensorBusCount = sizeof(sensorBuses) / sizeof(sensorBuses[0]);
+
+uint32_t lastTelemetryMs = 0;
+uint32_t lastStatusMs = 0;
+
+// Empty = no control sensor designated yet (or the backend hasn't told us).
+// With 5 differently-purposed sensors and no way to know which one the
+// backend's "first discovered" default picked, this matters more here than
+// on the fermenter board — expect to need a manual "Set as control" via the
+// Sensors UI on first setup. See main.cpp's fermenter equivalent for why
+// this isn't persisted to NVS (same reasoning applies).
+char controlSensorAddressHex[kSensorAddressHexLength + 1] = "";
+
+const char* controlModeToString(ControlMode mode) {
+    switch (mode) {
+        case ControlMode::OFF: return "off";
+        case ControlMode::PID: return "pid";
+        default: return "thermostat";
+    }
+}
+
+ControlMode controlModeFromString(const char* mode) {
+    if (mode == nullptr) {
+        return ControlMode::THERMOSTAT;
+    }
+    if (strcmp(mode, "off") == 0) {
+        return ControlMode::OFF;
+    }
+    if (strcmp(mode, "pid") == 0) {
+        return ControlMode::PID;
+    }
+    return ControlMode::THERMOSTAT;
+}
+
+void onConfigMessage(const uint8_t* payload, unsigned int length) {
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload, length);
+    if (err) {
+        Serial.printf("[config] invalid JSON: %s\n", err.c_str());
+        return;
+    }
+
+    ControlConfig next = controlLoop.config();
+
+    if (doc["setpointC"].is<float>()) {
+        float setpointC = doc["setpointC"];
+        if (!isnan(setpointC) && setpointC >= kMinPlausibleC && setpointC <= kMaxPlausibleC) {
+            next.setpointC = setpointC;
+        } else {
+            Serial.println("[config] rejected implausible setpointC");
+        }
+    }
+    if (doc["hysteresisC"].is<float>()) {
+        float hysteresisC = doc["hysteresisC"];
+        if (hysteresisC > 0.0f) {
+            next.hysteresisC = hysteresisC;
+        } else {
+            Serial.println("[config] rejected non-positive hysteresisC");
+        }
+    }
+    if (doc["mode"].is<const char*>()) {
+        next.mode = controlModeFromString(doc["mode"]);
+    }
+    if (doc["minOnTimeMs"].is<uint32_t>()) {
+        next.minOnTimeMs = doc["minOnTimeMs"];
+    }
+    if (doc["minOffTimeMs"].is<uint32_t>()) {
+        next.minOffTimeMs = doc["minOffTimeMs"];
+    }
+    if (doc["pidGains"].is<JsonObject>()) {
+        JsonObject gains = doc["pidGains"];
+        if (gains["kp"].is<float>()) next.pidGains.kp = gains["kp"];
+        if (gains["ki"].is<float>()) next.pidGains.ki = gains["ki"];
+        if (gains["kd"].is<float>()) next.pidGains.kd = gains["kd"];
+    }
+    if (doc["pidWindowMs"].is<uint32_t>()) {
+        uint32_t pidWindowMs = doc["pidWindowMs"];
+        if (pidWindowMs > 0) {
+            next.pidWindowMs = pidWindowMs;
+        } else {
+            Serial.println("[config] rejected non-positive pidWindowMs");
+        }
+    }
+    if (doc["controlSensorAddress"].is<const char*>()) {
+        const char* address = doc["controlSensorAddress"];
+        strncpy(controlSensorAddressHex, address, sizeof(controlSensorAddressHex) - 1);
+        controlSensorAddressHex[sizeof(controlSensorAddressHex) - 1] = '\0';
+    } else if (doc["controlSensorAddress"].isNull()) {
+        controlSensorAddressHex[0] = '\0';
+    }
+
+    // No heating on a kegerator — never let a misconfigured backend push
+    // heatingEnabled=true here regardless of what was sent.
+    next.heatingEnabled = false;
+
+    controlLoop.setConfig(next);
+    configStore.save(next);
+
+    Serial.printf(
+        "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu "
+        "controlSensor=%s\n",
+        next.setpointC, next.hysteresisC, controlModeToString(next.mode),
+        static_cast<unsigned long>(next.minOnTimeMs),
+        static_cast<unsigned long>(next.minOffTimeMs),
+        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)");
+}
+
+float selectControlTemperature(const SensorSample* samples, size_t count) {
+    if (count == 0) {
+        return NAN;
+    }
+    if (controlSensorAddressHex[0] != '\0') {
+        for (size_t i = 0; i < count; i++) {
+            if (unibrew::sensorAddressMatches(samples[i].address, controlSensorAddressHex)) {
+                return samples[i].temperatureC;
+            }
+        }
+    }
+    return samples[0].temperatureC;
+}
+
+// Only cooling exists on a kegerator — no heating relay to drive.
+void applyRelayOutput(ControlOutput output) {
+    bool coolingOn = (output == ControlOutput::COOLING);
+    digitalWrite(COOLING_RELAY_PIN, coolingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
+}
+
+void connectWiFi() {
+    if (WiFi.status() == WL_CONNECTED) {
+        return;
+    }
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    Serial.print("[wifi] connecting");
+    uint32_t startMs = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startMs < 15000) {
+        delay(250);
+        Serial.print(".");
+    }
+    Serial.println();
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("[wifi] connected, IP=%s\n", WiFi.localIP().toString().c_str());
+    } else {
+        Serial.println("[wifi] not connected yet, will keep retrying in loop()");
+    }
+}
+
+void publishTelemetry(const SensorSample* samples, size_t count) {
+    JsonDocument doc;
+    doc["deviceId"] = DEVICE_ID;
+    doc["ts"] = static_cast<uint64_t>(millis());
+
+    JsonArray sensorsArray = doc["sensors"].to<JsonArray>();
+    for (size_t i = 0; i < count; i++) {
+        JsonObject s = sensorsArray.add<JsonObject>();
+        char hex[kSensorAddressHexLength + 1];
+        unibrew::formatSensorAddress(samples[i].address, hex, sizeof(hex));
+        s["address"] = hex;
+        if (isnan(samples[i].temperatureC)) {
+            s["temperatureC"] = nullptr;
+        } else {
+            s["temperatureC"] = samples[i].temperatureC;
+        }
+    }
+
+    char buf[512];
+    size_t len = serializeJson(doc, buf, sizeof(buf));
+    (void)len;
+    mqttClient.publishTelemetry(buf);
+}
+
+void publishStatus() {
+    JsonDocument doc;
+    doc["deviceId"] = DEVICE_ID;
+    doc["online"] = true;
+    doc["firmwareVersion"] = FIRMWARE_VERSION;
+    doc["uptimeS"] = millis() / 1000;
+    doc["ts"] = static_cast<uint64_t>(millis());
+
+    char buf[192];
+    size_t len = serializeJson(doc, buf, sizeof(buf));
+    (void)len;
+    mqttClient.publishStatus(buf);
+}
+
+} // namespace
+
+void setup() {
+    Serial.begin(115200);
+    delay(200);
+    Serial.println("\n[boot] UniBrew kegerator firmware starting");
+
+    esp_task_wdt_init(kWatchdogTimeoutS, true);
+    esp_task_wdt_add(nullptr);
+
+    pinMode(COOLING_RELAY_PIN, OUTPUT);
+    applyRelayOutput(ControlOutput::IDLE); // safe default before any control decision has run
+
+    configStore.begin();
+    ControlConfig config = configStore.load();
+    config.heatingEnabled = false; // no heating hardware on a kegerator, regardless of stored config
+    controlLoop.setConfig(config);
+
+    size_t totalDiscovered = 0;
+    for (size_t i = 0; i < kSensorBusCount; i++) {
+        sensorBuses[i].manager->begin(sensorBuses[i].pin);
+        totalDiscovered += sensorBuses[i].manager->discover();
+    }
+    Serial.printf("[sensors] discovered %u of %u possible sensor(s)\n",
+                  static_cast<unsigned>(totalDiscovered), static_cast<unsigned>(kSensorBusCount));
+
+    connectWiFi();
+
+    mqttClient.begin(MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, DEVICE_ID, FIRMWARE_VERSION);
+    mqttClient.setConfigCallback(onConfigMessage);
+}
+
+void loop() {
+    esp_task_wdt_reset();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        connectWiFi();
+    }
+    mqttClient.loop();
+
+    uint32_t now = millis();
+
+    if (now - lastTelemetryMs >= kTelemetryIntervalMs) {
+        lastTelemetryMs = now;
+
+        SensorSample samples[kSensorBusCount];
+        size_t count = 0;
+        for (size_t i = 0; i < kSensorBusCount; i++) {
+            SensorSample sample;
+            if (sensorBuses[i].manager->readAll(&sample, 1) == 1) {
+                samples[count++] = sample;
+            }
+        }
+
+        float controlTemperatureC = selectControlTemperature(samples, count);
+        ControlOutput output = controlLoop.update(controlTemperatureC, now);
+        applyRelayOutput(output);
+        publishTelemetry(samples, count);
+    }
+
+    if (now - lastStatusMs >= kStatusIntervalMs) {
+        lastStatusMs = now;
+        publishStatus();
+    }
+}
