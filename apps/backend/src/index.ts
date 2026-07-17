@@ -10,6 +10,7 @@ import { insertReading } from "./db/repositories/readings.repo.js";
 import { getDeviceConfig, updateDeviceConfig } from "./db/repositories/device-configs.repo.js";
 import { listSensorsForDevice, recordSensorSeen } from "./db/repositories/device-sensors.repo.js";
 import { publishDeviceConfig } from "./mqtt/publish-config.js";
+import { applyFlowReading } from "./taps/apply-flow-reading.js";
 import { broadcastToAll } from "./ws/broadcast.js";
 
 async function main(): Promise<void> {
@@ -45,6 +46,10 @@ async function main(): Promise<void> {
 
       for (const sensor of payload.sensors) {
         recordSensorSeen(db, payload.deviceId, sensor.address, payload.ts);
+      }
+
+      for (const flow of payload.flows) {
+        applyFlowReading(db, payload.deviceId, flow, payload.ts);
       }
 
       // If a control sensor has just been auto-designated (first-ever sensor
