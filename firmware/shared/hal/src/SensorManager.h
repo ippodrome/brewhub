@@ -2,25 +2,44 @@
 #include <cstdint>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "SensorAddress.h"
 
 namespace unibrew {
 
-// Thin wrapper around a single DS18B20 on a OneWire bus. Phase 1 scope is one
-// sensor per device; multi-sensor support (kegerator: chamber/keg/tower/room)
-// is a Phase 2 extension of this same class, not a new abstraction.
+// Reasonable bound for sensors on a single OneWire bus for this project
+// (kegerator: chamber/keg/tower/room; fermenter: beer/fridge, plus room for
+// growth) — not a DS18B20/OneWire protocol limit.
+constexpr size_t kMaxSensors = 8;
+
+struct SensorSample {
+    uint8_t address[kSensorAddressBytes];
+    float temperatureC; // NaN if this specific sensor faulted on this read
+};
+
+// Discovers and reads however many DS18B20s are wired to a single OneWire
+// bus, identified by their stable ROM address rather than bus-scan index —
+// index order isn't guaranteed stable across reboots or when sensors are
+// added/removed, address identity is.
 class SensorManager {
 public:
     void begin(uint8_t oneWirePin);
 
-    // Returns NaN if the sensor didn't respond, failed its CRC, or reported
-    // the DallasTemperature "disconnected" sentinel — callers (ControlLoop)
-    // already treat NaN as "no valid reading."
-    float readTemperatureC();
+    // Scans the bus for connected devices. Call once at boot; DS18B20s
+    // aren't hot-pluggable in practice, so this isn't repeated in loop().
+    size_t discover();
+
+    size_t sensorCount() const;
+    const uint8_t* addressAt(size_t index) const; // raw 8 bytes, or nullptr if out of range
+
+    // Reads all discovered sensors in one pass. Returns how many samples
+    // were written into out (== sensorCount(), capped at capacity).
+    size_t readAll(SensorSample* out, size_t capacity);
 
 private:
     OneWire oneWire_;
     DallasTemperature sensors_{&oneWire_};
-    bool began_ = false;
+    uint8_t addresses_[kMaxSensors][kSensorAddressBytes];
+    size_t discoveredCount_ = 0;
 };
 
 } // namespace unibrew

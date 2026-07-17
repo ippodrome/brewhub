@@ -5,6 +5,7 @@
 
 #include "ControlLoop.h"
 #include "SensorManager.h"
+#include "SensorAddress.h"
 #include "ConfigStore.h"
 #include "MqttClientWrapper.h"
 #include "pins.h"
@@ -17,6 +18,8 @@ using unibrew::ControlOutput;
 using unibrew::ConfigStore;
 using unibrew::MqttClientWrapper;
 using unibrew::SensorManager;
+using unibrew::SensorSample;
+using unibrew::kSensorAddressHexLength;
 
 namespace {
 
@@ -33,6 +36,15 @@ MqttClientWrapper mqttClient;
 
 uint32_t lastTelemetryMs = 0;
 uint32_t lastStatusMs = 0;
+
+// Empty = no control sensor designated yet (or the backend hasn't told us) —
+// selectControlTemperature() falls back to the first discovered sensor.
+// Deliberately NOT persisted to NVS: it's re-delivered on every MQTT
+// reconnect via the retained config message, and for the common single
+// -sensor case the fallback is already correct, so the only gap is a brief
+// fallback-to-first-sensor window on a multi-sensor device rebooting while
+// MQTT is simultaneously unreachable — never a loss of control entirely.
+char controlSensorAddressHex[kSensorAddressHexLength + 1] = "";
 
 const char* controlModeToString(ControlMode mode) {
     switch (mode) {
@@ -104,18 +116,42 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
             Serial.println("[config] rejected non-positive pidWindowMs");
         }
     }
+    if (doc["controlSensorAddress"].is<const char*>()) {
+        const char* address = doc["controlSensorAddress"];
+        strncpy(controlSensorAddressHex, address, sizeof(controlSensorAddressHex) - 1);
+        controlSensorAddressHex[sizeof(controlSensorAddressHex) - 1] = '\0';
+    } else if (doc["controlSensorAddress"].isNull()) {
+        controlSensorAddressHex[0] = '\0';
+    }
 
     controlLoop.setConfig(next);
     configStore.save(next);
 
     Serial.printf(
         "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu "
-        "pid(kp=%.2f ki=%.2f kd=%.2f window=%lu)\n",
+        "pid(kp=%.2f ki=%.2f kd=%.2f window=%lu) controlSensor=%s\n",
         next.setpointC, next.hysteresisC, controlModeToString(next.mode),
         static_cast<unsigned long>(next.minOnTimeMs),
         static_cast<unsigned long>(next.minOffTimeMs),
         next.pidGains.kp, next.pidGains.ki, next.pidGains.kd,
-        static_cast<unsigned long>(next.pidWindowMs));
+        static_cast<unsigned long>(next.pidWindowMs),
+        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)");
+}
+
+float selectControlTemperature(const SensorSample* samples, size_t count) {
+    if (count == 0) {
+        return NAN;
+    }
+    if (controlSensorAddressHex[0] != '\0') {
+        for (size_t i = 0; i < count; i++) {
+            if (unibrew::sensorAddressMatches(samples[i].address, controlSensorAddressHex)) {
+                return samples[i].temperatureC;
+            }
+        }
+        // Designated address isn't among currently discovered sensors (e.g.
+        // physically unplugged) — fall back rather than control on nothing.
+    }
+    return samples[0].temperatureC;
 }
 
 void connectWiFi() {
@@ -140,17 +176,25 @@ void connectWiFi() {
     }
 }
 
-void publishTelemetry(float temperatureC) {
+void publishTelemetry(const SensorSample* samples, size_t count) {
     JsonDocument doc;
     doc["deviceId"] = DEVICE_ID;
     doc["ts"] = static_cast<uint64_t>(millis());
-    if (isnan(temperatureC)) {
-        doc["temperatureC"] = nullptr;
-    } else {
-        doc["temperatureC"] = temperatureC;
+
+    JsonArray sensorsArray = doc["sensors"].to<JsonArray>();
+    for (size_t i = 0; i < count; i++) {
+        JsonObject s = sensorsArray.add<JsonObject>();
+        char hex[kSensorAddressHexLength + 1];
+        unibrew::formatSensorAddress(samples[i].address, hex, sizeof(hex));
+        s["address"] = hex;
+        if (isnan(samples[i].temperatureC)) {
+            s["temperatureC"] = nullptr;
+        } else {
+            s["temperatureC"] = samples[i].temperatureC;
+        }
     }
 
-    char buf[192];
+    char buf[512];
     size_t len = serializeJson(doc, buf, sizeof(buf));
     (void)len;
     mqttClient.publishTelemetry(buf);
@@ -184,6 +228,8 @@ void setup() {
     controlLoop.setConfig(configStore.load());
 
     sensorManager.begin(ONE_WIRE_PIN);
+    size_t sensorsFound = sensorManager.discover();
+    Serial.printf("[sensors] discovered %u sensor(s) on the bus\n", static_cast<unsigned>(sensorsFound));
 
     connectWiFi();
 
@@ -203,9 +249,11 @@ void loop() {
 
     if (now - lastTelemetryMs >= kTelemetryIntervalMs) {
         lastTelemetryMs = now;
-        float temperatureC = sensorManager.readTemperatureC();
-        controlLoop.update(temperatureC, now);
-        publishTelemetry(temperatureC);
+        SensorSample samples[unibrew::kMaxSensors];
+        size_t count = sensorManager.readAll(samples, unibrew::kMaxSensors);
+        float controlTemperatureC = selectControlTemperature(samples, count);
+        controlLoop.update(controlTemperatureC, now);
+        publishTelemetry(samples, count);
     }
 
     if (now - lastStatusMs >= kStatusIntervalMs) {
