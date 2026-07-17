@@ -3,9 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Device } from "@brewhub/shared-types";
 import { deleteDevice } from "../api/devices";
 import { DeviceConfigForm } from "./DeviceConfigForm";
+import { ProfileManager } from "./ProfileManager";
 
 export function DeviceCard({ device }: { device: Device }): JSX.Element {
   const [configOpen, setConfigOpen] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const queryClient = useQueryClient();
 
@@ -37,6 +39,14 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           >
             Configure
           </button>
+          {device.type === "fermenter" && (
+            <button
+              onClick={() => setProfilesOpen((v) => !v)}
+              className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            >
+              Profiles
+            </button>
+          )}
           {confirmingDelete ? (
             <button
               onClick={() => deleteMutation.mutate()}
@@ -58,6 +68,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
       </div>
 
       {configOpen && <DeviceConfigForm device={device} onClose={() => setConfigOpen(false)} />}
+      {profilesOpen && <ProfileManager device={device} onClose={() => setProfilesOpen(false)} />}
     </div>
   );
 }
