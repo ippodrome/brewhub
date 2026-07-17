@@ -10,6 +10,7 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters"),
   PRESENCE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   PRESENCE_STALE_AFTER_MS: z.coerce.number().int().positive().default(60000),
+  PROFILE_SCHEDULER_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

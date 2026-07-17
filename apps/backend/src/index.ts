@@ -4,6 +4,7 @@ import { runMigrations } from "./db/migrate.js";
 import { buildApp } from "./app.js";
 import { createMqttClient } from "./mqtt/client.js";
 import { startPresenceSweep } from "./mqtt/presence.js";
+import { startProfileScheduler } from "./profiles/scheduler.js";
 import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
 import { broadcastToAll } from "./ws/broadcast.js";
@@ -54,6 +55,13 @@ async function main(): Promise<void> {
       // broadcast a full snapshot rather than fabricate one.
       broadcastToAll({ type: "device_list", payload: listDevices(db) });
     },
+  });
+
+  startProfileScheduler({
+    db,
+    mqttClient,
+    logger: app.log,
+    intervalMs: config.PROFILE_SCHEDULER_INTERVAL_MS,
   });
 
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
