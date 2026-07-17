@@ -42,6 +42,8 @@ async function main(): Promise<void> {
     },
   });
 
+  app.decorate("mqttClient", mqttClient);
+
   startPresenceSweep({
     db,
     logger: app.log,
