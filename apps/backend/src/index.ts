@@ -7,6 +7,9 @@ import { startPresenceSweep } from "./mqtt/presence.js";
 import { startProfileScheduler } from "./profiles/scheduler.js";
 import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
+import { getDeviceConfig, updateDeviceConfig } from "./db/repositories/device-configs.repo.js";
+import { listSensorsForDevice, recordSensorSeen } from "./db/repositories/device-sensors.repo.js";
+import { publishDeviceConfig } from "./mqtt/publish-config.js";
 import { broadcastToAll } from "./ws/broadcast.js";
 
 async function main(): Promise<void> {
@@ -39,6 +42,25 @@ async function main(): Promise<void> {
       insertReading(db, payload);
       // Telemetry is itself evidence of life, independent of the periodic status heartbeat.
       setDeviceOnline(db, payload.deviceId, true, payload.ts);
+
+      for (const sensor of payload.sensors) {
+        recordSensorSeen(db, payload.deviceId, sensor.address, payload.ts);
+      }
+
+      // If a control sensor has just been auto-designated (first-ever sensor
+      // for this device) but the device hasn't been told yet, tell it now —
+      // keeps firmware and backend in sync regardless of discovery timing.
+      const deviceConfig = getDeviceConfig(db, payload.deviceId);
+      if (deviceConfig && deviceConfig.controlSensorAddress === null) {
+        const controlSensor = listSensorsForDevice(db, payload.deviceId).find((s) => s.isControlSensor);
+        if (controlSensor) {
+          const updated = updateDeviceConfig(db, payload.deviceId, {
+            controlSensorAddress: controlSensor.address,
+          });
+          publishDeviceConfig(mqttClient, payload.deviceId, updated);
+        }
+      }
+
       broadcastToAll({ type: "telemetry", payload });
     },
   });

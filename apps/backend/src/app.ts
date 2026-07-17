@@ -8,6 +8,7 @@ import { authPlugin } from "./plugins/auth.plugin.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { devicesRoutes } from "./routes/devices.routes.js";
 import { profilesRoutes } from "./routes/profiles.routes.js";
+import { sensorsRoutes } from "./routes/sensors.routes.js";
 import { wsRoutes } from "./routes/ws.routes.js";
 
 export interface AppDeps {
@@ -33,6 +34,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await fastify.register(authRoutes);
   await fastify.register(devicesRoutes);
   await fastify.register(profilesRoutes);
+  await fastify.register(sensorsRoutes);
   await fastify.register(wsRoutes);
 
   return fastify;
