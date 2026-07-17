@@ -35,12 +35,22 @@ uint32_t lastTelemetryMs = 0;
 uint32_t lastStatusMs = 0;
 
 const char* controlModeToString(ControlMode mode) {
-    return mode == ControlMode::OFF ? "off" : "thermostat";
+    switch (mode) {
+        case ControlMode::OFF: return "off";
+        case ControlMode::PID: return "pid";
+        default: return "thermostat";
+    }
 }
 
 ControlMode controlModeFromString(const char* mode) {
-    if (mode != nullptr && strcmp(mode, "off") == 0) {
+    if (mode == nullptr) {
+        return ControlMode::THERMOSTAT;
+    }
+    if (strcmp(mode, "off") == 0) {
         return ControlMode::OFF;
+    }
+    if (strcmp(mode, "pid") == 0) {
+        return ControlMode::PID;
     }
     return ControlMode::THERMOSTAT;
 }
@@ -80,15 +90,32 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
     if (doc["minOffTimeMs"].is<uint32_t>()) {
         next.minOffTimeMs = doc["minOffTimeMs"];
     }
+    if (doc["pidGains"].is<JsonObject>()) {
+        JsonObject gains = doc["pidGains"];
+        if (gains["kp"].is<float>()) next.pidGains.kp = gains["kp"];
+        if (gains["ki"].is<float>()) next.pidGains.ki = gains["ki"];
+        if (gains["kd"].is<float>()) next.pidGains.kd = gains["kd"];
+    }
+    if (doc["pidWindowMs"].is<uint32_t>()) {
+        uint32_t pidWindowMs = doc["pidWindowMs"];
+        if (pidWindowMs > 0) {
+            next.pidWindowMs = pidWindowMs;
+        } else {
+            Serial.println("[config] rejected non-positive pidWindowMs");
+        }
+    }
 
     controlLoop.setConfig(next);
     configStore.save(next);
 
     Serial.printf(
-        "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu\n",
+        "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu "
+        "pid(kp=%.2f ki=%.2f kd=%.2f window=%lu)\n",
         next.setpointC, next.hysteresisC, controlModeToString(next.mode),
         static_cast<unsigned long>(next.minOnTimeMs),
-        static_cast<unsigned long>(next.minOffTimeMs));
+        static_cast<unsigned long>(next.minOffTimeMs),
+        next.pidGains.kp, next.pidGains.ki, next.pidGains.kd,
+        static_cast<unsigned long>(next.pidWindowMs));
 }
 
 void connectWiFi() {

@@ -18,6 +18,10 @@ ControlConfig ConfigStore::load() {
         prefs_.getUChar("mode", static_cast<uint8_t>(defaults.mode)));
     config.coolingEnabled = prefs_.getBool("coolingEnabled", defaults.coolingEnabled);
     config.heatingEnabled = prefs_.getBool("heatingEnabled", defaults.heatingEnabled);
+    config.pidGains.kp = prefs_.getFloat("pidKp", defaults.pidGains.kp);
+    config.pidGains.ki = prefs_.getFloat("pidKi", defaults.pidGains.ki);
+    config.pidGains.kd = prefs_.getFloat("pidKd", defaults.pidGains.kd);
+    config.pidWindowMs = prefs_.getULong("pidWindowMs", defaults.pidWindowMs);
     return config;
 }
 
@@ -29,6 +33,10 @@ void ConfigStore::save(const ControlConfig& config) {
     prefs_.putUChar("mode", static_cast<uint8_t>(config.mode));
     prefs_.putBool("coolingEnabled", config.coolingEnabled);
     prefs_.putBool("heatingEnabled", config.heatingEnabled);
+    prefs_.putFloat("pidKp", config.pidGains.kp);
+    prefs_.putFloat("pidKi", config.pidGains.ki);
+    prefs_.putFloat("pidKd", config.pidGains.kd);
+    prefs_.putULong("pidWindowMs", config.pidWindowMs);
 }
 
 } // namespace unibrew
