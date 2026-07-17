@@ -1,0 +1,19 @@
+:8443 {
+	tls internal {
+		on_demand
+	}
+
+	handle /api/* {
+		reverse_proxy backend:3000
+	}
+
+	handle /ws {
+		reverse_proxy backend:3000
+	}
+
+	handle {
+		root * /srv/frontend
+		try_files {path} /index.html
+		file_server
+	}
+}

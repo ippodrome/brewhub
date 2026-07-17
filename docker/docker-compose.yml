@@ -1,0 +1,53 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /data/brewhub.db
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_BACKEND_USERNAME}
+      MQTT_PASSWORD: ${MQTT_BACKEND_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - backend-data:/data
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Frontend is built locally (`pnpm --filter @brewhub/frontend build`), not containerized —
+      # Caddy just serves the static output. Run the build before `docker compose up`.
+      - ../apps/frontend/dist:/srv/frontend:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  backend-data:
+  caddy-data:
+  caddy-config:

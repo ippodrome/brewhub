@@ -97,6 +97,10 @@ Short ADRs for the choices made in `claude.md` §0. Each follows: Decision, Cont
 
 **Consequences**: `docker-compose.yml` includes Caddy from Phase 1, even though flashing isn't built until Phase 2 — the cert/proxy plumbing should already be a non-issue by the time it's needed.
 
+**Update (deployment host port conflict)**: The target Unraid host already runs NginxProxyManager and other services occupying the standard 80/443 range. Caddy binds to **8443 (HTTPS only)** instead, confirmed free against the host's current port allocation. NPM can optionally front a clean subdomain to BrewHub's Caddy later; not required for local/LAN use.
+
+**Update (on-demand TLS, discovered during Docker verification)**: `tls internal` on a hostname-less site address (`:8443`, since the deployment IP isn't known ahead of time) cannot eagerly provision a certificate at config load — Caddy needs *some* hostname to put in the cert. Fixed with `tls internal { on_demand }`, which issues a cert lazily per incoming SNI. Caddy logs a warning that unrestricted on-demand TLS is an abuse vector if internet-facing; accepted here because it's consistent with ADR-008's threat model (LAN-only, never exposed to the internet per the project's own non-goals) — revisit if that ever changes.
+
 ---
 
 ## ADR-008: MQTT transport — plaintext on trusted LAN, auth required
