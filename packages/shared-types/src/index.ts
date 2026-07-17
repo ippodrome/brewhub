@@ -1,5 +1,6 @@
 export * from "./device.js";
 export * from "./device-config.js";
+export * from "./device-sensor.js";
 export * from "./profile.js";
 export * from "./telemetry.js";
 export * from "./status.js";

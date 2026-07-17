@@ -29,6 +29,11 @@ export const DeviceConfigSchema = z.object({
   minOffTimeMs: z.number().int().nonnegative(),
   pidGains: PidGainsSchema,
   pidWindowMs: z.number().int().positive(),
+  // Which discovered sensor's reading feeds the control loop. Null until a
+  // sensor has actually been discovered and one is designated (defaults to
+  // the first-ever sensor seen for the device — see device-sensors backend
+  // logic) — firmware falls back to its first reading if null/unmatched.
+  controlSensorAddress: z.string().nullable(),
   overrideExpiresAt: z.number().int().nullable().optional(),
 });
 export type DeviceConfig = z.infer<typeof DeviceConfigSchema>;
@@ -51,5 +56,6 @@ export const DEFAULT_DEVICE_CONFIG: DeviceConfig = {
   minOffTimeMs: 60000,
   pidGains: { kp: 0, ki: 0, kd: 0 },
   pidWindowMs: 300000,
+  controlSensorAddress: null,
   overrideExpiresAt: null,
 };

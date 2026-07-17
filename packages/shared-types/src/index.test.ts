@@ -3,10 +3,13 @@ import {
   CreateDeviceRequestSchema,
   DeviceConfigSchema,
   DeviceSchema,
+  DeviceSensorSchema,
   ProfileSchema,
+  SensorReadingSchema,
   StatusPayloadSchema,
   TelemetryPayloadSchema,
   UpdateDeviceConfigRequestSchema,
+  UpdateDeviceSensorRequestSchema,
   WsMessageSchema,
   parseTopic,
   statusTopic,
@@ -69,11 +72,12 @@ describe("DeviceConfigSchema", () => {
       minOffTimeMs: 60000,
       pidGains: { kp: 0, ki: 0, kd: 0 },
       pidWindowMs: 300000,
+      controlSensorAddress: null,
     });
     expect(result.success).toBe(true);
   });
 
-  it("accepts pid mode with gains", () => {
+  it("accepts pid mode with gains and a control sensor address", () => {
     const result = DeviceConfigSchema.safeParse({
       setpointC: 18.5,
       hysteresisC: 0.5,
@@ -82,6 +86,7 @@ describe("DeviceConfigSchema", () => {
       minOffTimeMs: 60000,
       pidGains: { kp: 10, ki: 0.5, kd: 2 },
       pidWindowMs: 300000,
+      controlSensorAddress: "28FF641F0417033A",
     });
     expect(result.success).toBe(true);
   });
@@ -124,12 +129,36 @@ describe("DeviceConfigSchema", () => {
   });
 });
 
-describe("TelemetryPayloadSchema", () => {
+describe("SensorReadingSchema", () => {
   it("accepts a null temperature (sensor fault)", () => {
+    expect(SensorReadingSchema.safeParse({ address: "28FF641F0417033A", temperatureC: null }).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects a missing address", () => {
+    expect(SensorReadingSchema.safeParse({ temperatureC: 18.2 }).success).toBe(false);
+  });
+});
+
+describe("TelemetryPayloadSchema", () => {
+  it("accepts multiple sensor readings", () => {
     const result = TelemetryPayloadSchema.safeParse({
       deviceId: "fermenter-01",
       ts: 1700000000000,
-      temperatureC: null,
+      sensors: [
+        { address: "28FF641F0417033A", temperatureC: 18.2 },
+        { address: "28AA112233445566", temperatureC: null },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts zero sensors (device with none discovered yet)", () => {
+    const result = TelemetryPayloadSchema.safeParse({
+      deviceId: "fermenter-01",
+      ts: 1700000000000,
+      sensors: [],
     });
     expect(result.success).toBe(true);
   });
@@ -137,9 +166,43 @@ describe("TelemetryPayloadSchema", () => {
   it("rejects a missing deviceId", () => {
     const result = TelemetryPayloadSchema.safeParse({
       ts: 1700000000000,
-      temperatureC: 18.2,
+      sensors: [{ address: "28FF641F0417033A", temperatureC: 18.2 }],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("DeviceSensorSchema", () => {
+  it("accepts a labeled control sensor", () => {
+    const result = DeviceSensorSchema.safeParse({
+      deviceId: "fermenter-01",
+      address: "28FF641F0417033A",
+      label: "Beer",
+      isControlSensor: true,
+      lastSeenAt: 1700000000000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an unlabeled newly-discovered sensor", () => {
+    const result = DeviceSensorSchema.safeParse({
+      deviceId: "fermenter-01",
+      address: "28FF641F0417033A",
+      label: null,
+      isControlSensor: false,
+      lastSeenAt: null,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("UpdateDeviceSensorRequestSchema", () => {
+  it("accepts a label-only update", () => {
+    expect(UpdateDeviceSensorRequestSchema.safeParse({ label: "Fridge" }).success).toBe(true);
+  });
+
+  it("accepts an empty update", () => {
+    expect(UpdateDeviceSensorRequestSchema.safeParse({}).success).toBe(true);
   });
 });
 
@@ -204,7 +267,11 @@ describe("WsMessageSchema", () => {
   it("discriminates telemetry messages", () => {
     const result = WsMessageSchema.safeParse({
       type: "telemetry",
-      payload: { deviceId: "fermenter-01", ts: 1700000000000, temperatureC: 19.1 },
+      payload: {
+        deviceId: "fermenter-01",
+        ts: 1700000000000,
+        sensors: [{ address: "28FF641F0417033A", temperatureC: 19.1 }],
+      },
     });
     expect(result.success).toBe(true);
   });
