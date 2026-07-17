@@ -4,10 +4,12 @@ import type { Device } from "@brewhub/shared-types";
 import { deleteDevice } from "../api/devices";
 import { DeviceConfigForm } from "./DeviceConfigForm";
 import { ProfileManager } from "./ProfileManager";
+import { SensorLabelEditor } from "./SensorLabelEditor";
 
 export function DeviceCard({ device }: { device: Device }): JSX.Element {
   const [configOpen, setConfigOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
+  const [sensorsOpen, setSensorsOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const queryClient = useQueryClient();
 
@@ -39,6 +41,12 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           >
             Configure
           </button>
+          <button
+            onClick={() => setSensorsOpen((v) => !v)}
+            className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+          >
+            Sensors
+          </button>
           {device.type === "fermenter" && (
             <button
               onClick={() => setProfilesOpen((v) => !v)}
@@ -68,6 +76,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
       </div>
 
       {configOpen && <DeviceConfigForm device={device} onClose={() => setConfigOpen(false)} />}
+      {sensorsOpen && <SensorLabelEditor device={device} onClose={() => setSensorsOpen(false)} />}
       {profilesOpen && <ProfileManager device={device} onClose={() => setProfilesOpen(false)} />}
     </div>
   );
