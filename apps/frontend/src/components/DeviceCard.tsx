@@ -5,11 +5,13 @@ import { deleteDevice } from "../api/devices";
 import { DeviceConfigForm } from "./DeviceConfigForm";
 import { ProfileManager } from "./ProfileManager";
 import { SensorLabelEditor } from "./SensorLabelEditor";
+import { TapManager } from "./TapManager";
 
 export function DeviceCard({ device }: { device: Device }): JSX.Element {
   const [configOpen, setConfigOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [sensorsOpen, setSensorsOpen] = useState(false);
+  const [tapsOpen, setTapsOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const queryClient = useQueryClient();
 
@@ -55,6 +57,14 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
               Profiles
             </button>
           )}
+          {device.type === "kegerator" && (
+            <button
+              onClick={() => setTapsOpen((v) => !v)}
+              className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            >
+              Taps
+            </button>
+          )}
           {confirmingDelete ? (
             <button
               onClick={() => deleteMutation.mutate()}
@@ -78,6 +88,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
       {configOpen && <DeviceConfigForm device={device} onClose={() => setConfigOpen(false)} />}
       {sensorsOpen && <SensorLabelEditor device={device} onClose={() => setSensorsOpen(false)} />}
       {profilesOpen && <ProfileManager device={device} onClose={() => setProfilesOpen(false)} />}
+      {tapsOpen && <TapManager device={device} onClose={() => setTapsOpen(false)} />}
     </div>
   );
 }

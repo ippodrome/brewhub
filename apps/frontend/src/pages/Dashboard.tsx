@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useLiveTelemetry } from "../ws/useLiveTelemetry";
 import { TemperatureReadout } from "../components/TemperatureReadout";
+import { TapVolumeSummary } from "../components/TapVolumeSummary";
 
 export function Dashboard(): JSX.Element {
   const { connected, devices, telemetryByDevice } = useLiveTelemetry();
@@ -43,7 +44,9 @@ export function Dashboard(): JSX.Element {
               <h2 className="text-xs font-medium uppercase tracking-wide text-neutral-500">Kegerator</h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 {kegerators.map((device) => (
-                  <TemperatureReadout key={device.id} device={device} telemetry={telemetryByDevice[device.id]} />
+                  <TemperatureReadout key={device.id} device={device} telemetry={telemetryByDevice[device.id]}>
+                    <TapVolumeSummary device={device} />
+                  </TemperatureReadout>
                 ))}
               </div>
             </section>

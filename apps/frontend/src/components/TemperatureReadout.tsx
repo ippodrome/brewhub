@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Device, TelemetryPayload } from "@brewhub/shared-types";
 import { listSensors } from "../api/sensors";
@@ -19,9 +20,11 @@ function shortAddress(address: string): string {
 export function TemperatureReadout({
   device,
   telemetry,
+  children,
 }: {
   device: Device;
   telemetry: TelemetryPayload | undefined;
+  children?: ReactNode;
 }): JSX.Element {
   const sensorsQuery = useQuery({
     queryKey: ["sensors", device.id],
@@ -81,6 +84,8 @@ export function TemperatureReadout({
       <p className="mt-2 text-xs text-neutral-500">
         {device.isOnline ? "Online" : "Offline"} · last reading {timeAgo(telemetry?.ts ?? device.lastSeenAt)}
       </p>
+
+      {children}
     </div>
   );
 }
