@@ -1,0 +1,13 @@
+{
+  "name": "unibrew-hal",
+  "version": "0.1.0",
+  "description": "Hardware-facing layer (sensors, config persistence, MQTT transport) for UniBrew ESP32 devices",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "knolleary/PubSubClient": "^2.8",
+    "milesburton/DallasTemperature": "^3.11.0",
+    "paulstoffregen/OneWire": "^2.3.7",
+    "bblanchon/ArduinoJson": "^7.0.4"
+  }
+}

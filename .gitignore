@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .pio/
+firmware/**/include/secrets.h
 *.db
 *.db-wal
 *.db-shm
