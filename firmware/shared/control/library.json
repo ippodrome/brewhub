@@ -1,0 +1,7 @@
+{
+  "name": "unibrew-control",
+  "version": "0.1.0",
+  "description": "Pure, hardware-independent temperature control core for UniBrew devices",
+  "frameworks": [],
+  "platforms": ["*"]
+}

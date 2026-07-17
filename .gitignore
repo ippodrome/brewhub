@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.pio/
+*.db
+*.db-wal
+*.db-shm
+docker/mosquitto/passwd
+.env
+apps/frontend/dist/
+.DS_Store
+.vscode/
+*.log

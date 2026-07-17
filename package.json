@@ -1,0 +1,17 @@
+{
+  "name": "brewhub",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "packageManager": "pnpm@11.5.2",
+  "scripts": {
+    "dev:backend": "pnpm --filter @brewhub/backend dev",
+    "dev:frontend": "pnpm --filter @brewhub/frontend dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
