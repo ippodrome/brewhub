@@ -14,6 +14,7 @@
   "dependencies": {
     "@brewhub/shared-types": "workspace:*",
     "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
     "@fastify/websocket": "^11.0.0",
     "@fastify/jwt": "^9.0.0",
     "@fastify/cors": "^10.0.0",

@@ -3,6 +3,8 @@ import type Database from "better-sqlite3";
 import cors from "@fastify/cors";
 import type { AppConfig } from "./config/env.js";
 import { healthRoutes } from "./routes/health.routes.js";
+import { authPlugin } from "./plugins/auth.plugin.js";
+import { authRoutes } from "./routes/auth.routes.js";
 
 export interface AppDeps {
   db: Database.Database;
@@ -20,8 +22,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   fastify.decorate("appConfig", deps.config);
 
   await fastify.register(cors, { origin: true });
+  await fastify.register(authPlugin);
 
   await fastify.register(healthRoutes);
+  await fastify.register(authRoutes);
 
   return fastify;
 }
