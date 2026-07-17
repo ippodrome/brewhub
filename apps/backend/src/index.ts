@@ -4,8 +4,9 @@ import { runMigrations } from "./db/migrate.js";
 import { buildApp } from "./app.js";
 import { createMqttClient } from "./mqtt/client.js";
 import { startPresenceSweep } from "./mqtt/presence.js";
-import { getDevice, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
+import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
+import { broadcastToAll } from "./ws/broadcast.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
       }
       setDeviceOnline(db, payload.deviceId, payload.online, payload.ts);
       setDeviceFirmwareVersion(db, payload.deviceId, payload.firmwareVersion);
+      broadcastToAll({ type: "status", payload });
     },
     onTelemetry: (payload) => {
       if (!getDevice(db, payload.deviceId)) {
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
       insertReading(db, payload);
       // Telemetry is itself evidence of life, independent of the periodic status heartbeat.
       setDeviceOnline(db, payload.deviceId, true, payload.ts);
+      broadcastToAll({ type: "telemetry", payload });
     },
   });
 
@@ -44,6 +47,11 @@ async function main(): Promise<void> {
     logger: app.log,
     intervalMs: config.PRESENCE_SWEEP_INTERVAL_MS,
     staleAfterMs: config.PRESENCE_STALE_AFTER_MS,
+    onDeviceOffline: () => {
+      // Sweep-driven transitions don't carry a fresh status payload, so
+      // broadcast a full snapshot rather than fabricate one.
+      broadcastToAll({ type: "device_list", payload: listDevices(db) });
+    },
   });
 
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
