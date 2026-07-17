@@ -8,6 +8,12 @@ interface DeviceConfigRow {
   mode: string;
   min_on_time_ms: number;
   min_off_time_ms: number;
+  pid_kp: number;
+  pid_ki: number;
+  pid_kd: number;
+  pid_window_ms: number;
+  active_profile_id: number | null;
+  profile_started_at: number | null;
   override_expires_at: number | null;
   updated_at: number;
 }
@@ -19,14 +25,22 @@ function toDeviceConfig(row: DeviceConfigRow): DeviceConfig {
     mode: row.mode as DeviceConfig["mode"],
     minOnTimeMs: row.min_on_time_ms,
     minOffTimeMs: row.min_off_time_ms,
+    pidGains: { kp: row.pid_kp, ki: row.pid_ki, kd: row.pid_kd },
+    pidWindowMs: row.pid_window_ms,
     overrideExpiresAt: row.override_expires_at,
   };
 }
 
+function getRow(db: Database.Database, deviceId: string): DeviceConfigRow | null {
+  return (
+    db
+      .prepare<[string], DeviceConfigRow>("SELECT * FROM device_configs WHERE device_id = ?")
+      .get(deviceId) ?? null
+  );
+}
+
 export function getDeviceConfig(db: Database.Database, deviceId: string): DeviceConfig | null {
-  const row = db
-    .prepare<[string], DeviceConfigRow>("SELECT * FROM device_configs WHERE device_id = ?")
-    .get(deviceId);
+  const row = getRow(db, deviceId);
   return row ? toDeviceConfig(row) : null;
 }
 
@@ -34,8 +48,10 @@ export function getDeviceConfig(db: Database.Database, deviceId: string): Device
 export function ensureDefaultDeviceConfig(db: Database.Database, deviceId: string): void {
   db.prepare(
     `INSERT OR IGNORE INTO device_configs
-       (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms)
-     VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs)`,
+       (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms,
+        pid_kp, pid_ki, pid_kd, pid_window_ms)
+     VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs,
+             @pidKp, @pidKi, @pidKd, @pidWindowMs)`,
   ).run({
     deviceId,
     setpointC: DEFAULT_DEVICE_CONFIG.setpointC,
@@ -43,6 +59,10 @@ export function ensureDefaultDeviceConfig(db: Database.Database, deviceId: strin
     mode: DEFAULT_DEVICE_CONFIG.mode,
     minOnTimeMs: DEFAULT_DEVICE_CONFIG.minOnTimeMs,
     minOffTimeMs: DEFAULT_DEVICE_CONFIG.minOffTimeMs,
+    pidKp: DEFAULT_DEVICE_CONFIG.pidGains.kp,
+    pidKi: DEFAULT_DEVICE_CONFIG.pidGains.ki,
+    pidKd: DEFAULT_DEVICE_CONFIG.pidGains.kd,
+    pidWindowMs: DEFAULT_DEVICE_CONFIG.pidWindowMs,
   });
 }
 
@@ -53,18 +73,28 @@ export function updateDeviceConfig(
   partial: Partial<DeviceConfig>,
 ): DeviceConfig {
   const current = getDeviceConfig(db, deviceId) ?? DEFAULT_DEVICE_CONFIG;
-  const next: DeviceConfig = { ...current, ...partial };
+  const next: DeviceConfig = {
+    ...current,
+    ...partial,
+    pidGains: { ...current.pidGains, ...partial.pidGains },
+  };
 
   db.prepare(
     `INSERT INTO device_configs
-       (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms, override_expires_at, updated_at)
-     VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs, @overrideExpiresAt, unixepoch())
+       (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms,
+        pid_kp, pid_ki, pid_kd, pid_window_ms, override_expires_at, updated_at)
+     VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs,
+             @pidKp, @pidKi, @pidKd, @pidWindowMs, @overrideExpiresAt, unixepoch())
      ON CONFLICT(device_id) DO UPDATE SET
        setpoint_c = excluded.setpoint_c,
        hysteresis_c = excluded.hysteresis_c,
        mode = excluded.mode,
        min_on_time_ms = excluded.min_on_time_ms,
        min_off_time_ms = excluded.min_off_time_ms,
+       pid_kp = excluded.pid_kp,
+       pid_ki = excluded.pid_ki,
+       pid_kd = excluded.pid_kd,
+       pid_window_ms = excluded.pid_window_ms,
        override_expires_at = excluded.override_expires_at,
        updated_at = unixepoch()`,
   ).run({
@@ -74,8 +104,64 @@ export function updateDeviceConfig(
     mode: next.mode,
     minOnTimeMs: next.minOnTimeMs,
     minOffTimeMs: next.minOffTimeMs,
+    pidKp: next.pidGains.kp,
+    pidKi: next.pidGains.ki,
+    pidKd: next.pidGains.kd,
+    pidWindowMs: next.pidWindowMs,
     overrideExpiresAt: next.overrideExpiresAt ?? null,
   });
 
   return next;
+}
+
+export interface ActiveProfileState {
+  activeProfileId: number;
+  profileStartedAt: number;
+}
+
+export function getActiveProfileState(
+  db: Database.Database,
+  deviceId: string,
+): ActiveProfileState | null {
+  const row = getRow(db, deviceId);
+  if (!row || row.active_profile_id === null || row.profile_started_at === null) {
+    return null;
+  }
+  return { activeProfileId: row.active_profile_id, profileStartedAt: row.profile_started_at };
+}
+
+export function setActiveProfile(
+  db: Database.Database,
+  deviceId: string,
+  profileId: number,
+  startedAtMs: number,
+): void {
+  db.prepare(
+    `UPDATE device_configs SET active_profile_id = ?, profile_started_at = ?, updated_at = unixepoch()
+     WHERE device_id = ?`,
+  ).run(profileId, startedAtMs, deviceId);
+}
+
+export function clearActiveProfile(db: Database.Database, deviceId: string): void {
+  db.prepare(
+    `UPDATE device_configs SET active_profile_id = NULL, profile_started_at = NULL, updated_at = unixepoch()
+     WHERE device_id = ?`,
+  ).run(deviceId);
+}
+
+/** All devices currently following a profile — used by the resolution scheduler. */
+export function listDevicesWithActiveProfile(
+  db: Database.Database,
+): Array<{ deviceId: string } & ActiveProfileState> {
+  const rows = db
+    .prepare<[], { device_id: string; active_profile_id: number; profile_started_at: number }>(
+      `SELECT device_id, active_profile_id, profile_started_at FROM device_configs
+       WHERE active_profile_id IS NOT NULL AND profile_started_at IS NOT NULL`,
+    )
+    .all();
+  return rows.map((r) => ({
+    deviceId: r.device_id,
+    activeProfileId: r.active_profile_id,
+    profileStartedAt: r.profile_started_at,
+  }));
 }

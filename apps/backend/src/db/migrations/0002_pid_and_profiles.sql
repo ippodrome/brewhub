@@ -1,0 +1,6 @@
+ALTER TABLE device_configs ADD COLUMN pid_kp REAL NOT NULL DEFAULT 0;
+ALTER TABLE device_configs ADD COLUMN pid_ki REAL NOT NULL DEFAULT 0;
+ALTER TABLE device_configs ADD COLUMN pid_kd REAL NOT NULL DEFAULT 0;
+ALTER TABLE device_configs ADD COLUMN pid_window_ms INTEGER NOT NULL DEFAULT 300000;
+ALTER TABLE device_configs ADD COLUMN active_profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL;
+ALTER TABLE device_configs ADD COLUMN profile_started_at INTEGER;

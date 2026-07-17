@@ -6,7 +6,14 @@ import {
   insertDevice,
   listDevices,
 } from "../db/repositories/devices.repo.js";
-import { ensureDefaultDeviceConfig, updateDeviceConfig } from "../db/repositories/device-configs.repo.js";
+import {
+  clearActiveProfile,
+  ensureDefaultDeviceConfig,
+  setActiveProfile,
+  updateDeviceConfig,
+} from "../db/repositories/device-configs.repo.js";
+import { getProfile } from "../db/repositories/profiles.repo.js";
+import { resolveProfileSetpoint } from "../profiles/resolve-setpoint.js";
 import { publishDeviceConfig } from "../mqtt/publish-config.js";
 
 export async function devicesRoutes(fastify: FastifyInstance): Promise<void> {
@@ -62,7 +69,24 @@ export async function devicesRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "Invalid request body", details: parsed.error.flatten() });
       }
 
-      const config = updateDeviceConfig(fastify.db, id, parsed.data);
+      const { activeProfileId, ...configPartial } = parsed.data;
+      let finalPartial = configPartial;
+
+      if (activeProfileId === null) {
+        clearActiveProfile(fastify.db, id);
+      } else if (activeProfileId !== undefined) {
+        const profile = getProfile(fastify.db, activeProfileId);
+        if (!profile || profile.deviceId !== id) {
+          return reply.code(400).send({ error: "Profile not found for this device" });
+        }
+        setActiveProfile(fastify.db, id, activeProfileId, Date.now());
+        // Resolve immediately at activation (elapsed=0) — don't wait for the
+        // scheduler's next tick, and this wins over any setpointC also sent
+        // in this same request.
+        finalPartial = { ...configPartial, setpointC: resolveProfileSetpoint(profile.steps, 0) };
+      }
+
+      const config = updateDeviceConfig(fastify.db, id, finalPartial);
       publishDeviceConfig(fastify.mqttClient, id, config);
 
       return reply.send(config);
