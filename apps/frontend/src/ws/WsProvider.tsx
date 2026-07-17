@@ -78,9 +78,15 @@ export function WsProvider({ children }: { children: ReactNode }): JSX.Element {
               telemetryByDevice: { ...prev.telemetryByDevice, [message.payload.deviceId]: message.payload },
             };
           }
+          // A status message is also the most current word on isOnline for that
+          // device — patch it into the device list, not just statusByDevice,
+          // so isOnline reflects live status without waiting for a full snapshot.
           return {
             ...prev,
             statusByDevice: { ...prev.statusByDevice, [message.payload.deviceId]: message.payload },
+            devices: prev.devices.map((d) =>
+              d.id === message.payload.deviceId ? { ...d, isOnline: message.payload.online } : d,
+            ),
           };
         });
       };
