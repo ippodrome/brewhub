@@ -1,8 +1,11 @@
 services:
   backend:
-    build:
-      context: ..
-      dockerfile: docker/backend.Dockerfile
+    # Pulls the published image by default (built + pushed by
+    # .github/workflows/publish-backend-image.yml on every push to main and
+    # on version tags) — nothing to compile on the host this runs on. For
+    # local development against uncommitted changes, use
+    # docker-compose.dev.yml instead, which builds from source.
+    image: ghcr.io/ippodrome/brewhub-backend:${BREWHUB_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -37,6 +40,15 @@ services:
         condition: service_healthy
     ports:
       - "8443:8443"
+    # Lets Unraid's Docker tab (or any Docker UI reading standard labels)
+    # show a WebUI button/link straight to the app, and group it under a
+    # sensible category — works for compose-managed containers exactly the
+    # same as it does for XML-template ones; Unraid reads labels off the
+    # running container regardless of how it was started.
+    labels:
+      net.unraid.docker.webui: "https://[IP]:[PORT:8443]/"
+      # No icon asset exists yet — omitted rather than pointed at a broken
+      # URL. Unraid falls back to a generic Docker icon without one.
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       # Frontend is built locally (`pnpm --filter @brewhub/frontend build`), not containerized —

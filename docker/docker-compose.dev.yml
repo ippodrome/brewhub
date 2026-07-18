@@ -1,0 +1,18 @@
+# Overlay for building the backend from local source instead of pulling the
+# published image — use when testing uncommitted changes:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# (Combine with docker-compose.mosquitto.yml too if needed, same as usual —
+# order just needs this file listed after the base one.)
+#
+# Adding `build:` alongside the base file's `image:` is deliberate, not an
+# oversight — with --build, Compose builds from this Dockerfile and tags the
+# result with the base file's image name, purely locally (nothing pushed
+# anywhere). Without --build it would just pull as normal, so the --build
+# flag above isn't optional when using this overlay.
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
