@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DeviceTypeSchema = z.enum(["kegerator", "fermenter", "sensor"]);
+export const DeviceTypeSchema = z.enum(["kegerator", "fermenter", "sensor", "keg_scale", "gravity_bridge"]);
 export type DeviceType = z.infer<typeof DeviceTypeSchema>;
 
 export const DeviceSchema = z.object({

@@ -11,6 +11,8 @@ import {
   setActiveProfile,
 } from "../db/repositories/device-configs.repo.js";
 import { deleteProfile, insertProfile } from "../db/repositories/profiles.repo.js";
+import { insertHydrometer } from "../db/repositories/hydrometers.repo.js";
+import { insertGravityReading } from "../db/repositories/gravity-readings.repo.js";
 import { runProfileSchedulerTick } from "./scheduler.js";
 
 function makeFakeMqttClient(): MqttClient {
@@ -34,6 +36,7 @@ describe("runProfileSchedulerTick", () => {
     const db = setUpDevice();
     const profile = insertProfile(db, "fermenter-01", {
       name: "Test",
+      triggerType: "time",
       steps: [
         { atMinutes: 0, targetC: 18 },
         { atMinutes: 100, targetC: 20 },
@@ -62,6 +65,7 @@ describe("runProfileSchedulerTick", () => {
     const db = setUpDevice();
     const profile = insertProfile(db, "fermenter-01", {
       name: "Test",
+      triggerType: "time",
       steps: [
         { atMinutes: 0, targetC: 18 },
         { atMinutes: 100, targetC: 20 },
@@ -84,6 +88,7 @@ describe("runProfileSchedulerTick", () => {
     const db = setUpDevice();
     const profile = insertProfile(db, "fermenter-01", {
       name: "Test",
+      triggerType: "time",
       steps: [{ atMinutes: 0, targetC: 18 }],
     });
     setActiveProfile(db, "fermenter-01", profile.id, 1_000_000);
@@ -104,6 +109,72 @@ describe("runProfileSchedulerTick", () => {
     const logger = makeFakeLogger();
 
     runProfileSchedulerTick({ db, mqttClient, logger, now: () => Date.now() });
+
+    expect(mqttClient.publish).not.toHaveBeenCalled();
+  });
+
+  it("resolves and publishes from the latest gravity reading for a gravity-triggered profile", () => {
+    const db = setUpDevice();
+    const hydrometer = insertHydrometer(db, {
+      identifier: "tilt-red",
+      type: "tilt",
+      fermenterDeviceId: "fermenter-01",
+    });
+    insertGravityReading(db, hydrometer.id, 1_000_000, 1.02, 20, 100);
+
+    const profile = insertProfile(db, "fermenter-01", {
+      name: "Gravity test",
+      triggerType: "gravity",
+      steps: [
+        { atGravitySg: 1.05, targetC: 18 },
+        { atGravitySg: 1.0, targetC: 22 },
+      ],
+    });
+    setActiveProfile(db, "fermenter-01", profile.id, 1_000_000);
+
+    const mqttClient = makeFakeMqttClient();
+    const logger = makeFakeLogger();
+
+    // 1.02 is 60% of the way from 1.05 down to 1.0 => 18 + 0.6*(22-18) = 20.4
+    runProfileSchedulerTick({ db, mqttClient, logger, now: () => 2_000_000 });
+
+    const config = getDeviceConfig(db, "fermenter-01")!;
+    expect(config.setpointC).toBeCloseTo(20.4);
+    expect(mqttClient.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a gravity-triggered profile when no hydrometer is assigned", () => {
+    const db = setUpDevice();
+    const profile = insertProfile(db, "fermenter-01", {
+      name: "Gravity test",
+      triggerType: "gravity",
+      steps: [{ atGravitySg: 1.02, targetC: 18 }],
+    });
+    setActiveProfile(db, "fermenter-01", profile.id, 1_000_000);
+
+    const mqttClient = makeFakeMqttClient();
+    const logger = makeFakeLogger();
+
+    runProfileSchedulerTick({ db, mqttClient, logger, now: () => 2_000_000 });
+
+    expect(mqttClient.publish).not.toHaveBeenCalled();
+  });
+
+  it("skips a gravity-triggered profile when no gravity reading exists yet", () => {
+    const db = setUpDevice();
+    insertHydrometer(db, { identifier: "tilt-red", type: "tilt", fermenterDeviceId: "fermenter-01" });
+
+    const profile = insertProfile(db, "fermenter-01", {
+      name: "Gravity test",
+      triggerType: "gravity",
+      steps: [{ atGravitySg: 1.02, targetC: 18 }],
+    });
+    setActiveProfile(db, "fermenter-01", profile.id, 1_000_000);
+
+    const mqttClient = makeFakeMqttClient();
+    const logger = makeFakeLogger();
+
+    runProfileSchedulerTick({ db, mqttClient, logger, now: () => 2_000_000 });
 
     expect(mqttClient.publish).not.toHaveBeenCalled();
   });

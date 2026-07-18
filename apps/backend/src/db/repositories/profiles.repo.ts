@@ -1,22 +1,21 @@
 import type Database from "better-sqlite3";
-import type { CreateProfileRequest, Profile, ProfileStep } from "@brewhub/shared-types";
+import type { CreateProfileRequest, GravityProfileStep, Profile, TimeProfileStep } from "@brewhub/shared-types";
 
 interface ProfileRow {
   id: number;
   device_id: string;
   name: string;
+  trigger_type: string;
   steps_json: string;
   created_at: number;
 }
 
 function toProfile(row: ProfileRow): Profile {
-  return {
-    id: row.id,
-    deviceId: row.device_id,
-    name: row.name,
-    steps: JSON.parse(row.steps_json) as ProfileStep[],
-    createdAt: row.created_at,
-  };
+  const base = { id: row.id, deviceId: row.device_id, name: row.name, createdAt: row.created_at };
+  if (row.trigger_type === "gravity") {
+    return { ...base, triggerType: "gravity", steps: JSON.parse(row.steps_json) as GravityProfileStep[] };
+  }
+  return { ...base, triggerType: "time", steps: JSON.parse(row.steps_json) as TimeProfileStep[] };
 }
 
 export function listProfilesForDevice(db: Database.Database, deviceId: string): Profile[] {
@@ -39,8 +38,8 @@ export function insertProfile(
   req: CreateProfileRequest,
 ): Profile {
   const result = db
-    .prepare("INSERT INTO profiles (device_id, name, steps_json) VALUES (?, ?, ?)")
-    .run(deviceId, req.name, JSON.stringify(req.steps));
+    .prepare("INSERT INTO profiles (device_id, name, trigger_type, steps_json) VALUES (?, ?, ?, ?)")
+    .run(deviceId, req.name, req.triggerType, JSON.stringify(req.steps));
   const profile = getProfile(db, Number(result.lastInsertRowid));
   if (!profile) throw new Error("Failed to read back inserted profile");
   return profile;

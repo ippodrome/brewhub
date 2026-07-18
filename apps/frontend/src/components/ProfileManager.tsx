@@ -1,14 +1,24 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Device, ProfileStep } from "@brewhub/shared-types";
+import type { Device, GravityProfileStep, TimeProfileStep } from "@brewhub/shared-types";
 import { createProfile, deleteProfile, listProfiles } from "../api/profiles";
+import { listHydrometers } from "../api/hydrometers";
 import { updateDeviceConfig } from "../api/devices";
 
-const EMPTY_STEP: ProfileStep = { atMinutes: 0, targetC: 20 };
+const EMPTY_TIME_STEPS: TimeProfileStep[] = [
+  { atMinutes: 0, targetC: 20 },
+  { atMinutes: 1440, targetC: 20 },
+];
+const EMPTY_GRAVITY_STEPS: GravityProfileStep[] = [
+  { atGravitySg: 1.05, targetC: 20 },
+  { atGravitySg: 1.01, targetC: 20 },
+];
 
 export function ProfileManager({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
   const [name, setName] = useState("");
-  const [steps, setSteps] = useState<ProfileStep[]>([EMPTY_STEP, { atMinutes: 1440, targetC: 20 }]);
+  const [triggerType, setTriggerType] = useState<"time" | "gravity">("time");
+  const [timeSteps, setTimeSteps] = useState<TimeProfileStep[]>(EMPTY_TIME_STEPS);
+  const [gravitySteps, setGravitySteps] = useState<GravityProfileStep[]>(EMPTY_GRAVITY_STEPS);
   const queryClient = useQueryClient();
 
   const profilesQuery = useQuery({
@@ -16,12 +26,19 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
     queryFn: () => listProfiles(device.id),
   });
 
+  const hydrometersQuery = useQuery({ queryKey: ["hydrometers"], queryFn: listHydrometers });
+  const hasHydrometer = (hydrometersQuery.data ?? []).some((h) => h.fermenterDeviceId === device.id);
+
   const createMutation = useMutation({
-    mutationFn: () => createProfile(device.id, { name, steps }),
+    mutationFn: () =>
+      triggerType === "time"
+        ? createProfile(device.id, { name, triggerType: "time", steps: timeSteps })
+        : createProfile(device.id, { name, triggerType: "gravity", steps: gravitySteps }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles", device.id] });
       setName("");
-      setSteps([EMPTY_STEP, { atMinutes: 1440, targetC: 20 }]);
+      setTimeSteps(EMPTY_TIME_STEPS);
+      setGravitySteps(EMPTY_GRAVITY_STEPS);
     },
   });
 
@@ -36,17 +53,32 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
   });
 
-  function updateStep(index: number, patch: Partial<ProfileStep>): void {
-    setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  function updateTimeStep(index: number, patch: Partial<TimeProfileStep>): void {
+    setTimeSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  }
+  function updateGravityStep(index: number, patch: Partial<GravityProfileStep>): void {
+    setGravitySteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
   function addStep(): void {
-    const last = steps[steps.length - 1];
-    setSteps((prev) => [...prev, { atMinutes: (last?.atMinutes ?? 0) + 1440, targetC: last?.targetC ?? 20 }]);
+    if (triggerType === "time") {
+      const last = timeSteps[timeSteps.length - 1];
+      setTimeSteps((prev) => [...prev, { atMinutes: (last?.atMinutes ?? 0) + 1440, targetC: last?.targetC ?? 20 }]);
+    } else {
+      const last = gravitySteps[gravitySteps.length - 1];
+      setGravitySteps((prev) => [
+        ...prev,
+        { atGravitySg: Math.max((last?.atGravitySg ?? 1.05) - 0.01, 1.0), targetC: last?.targetC ?? 20 },
+      ]);
+    }
   }
 
   function removeStep(index: number): void {
-    setSteps((prev) => prev.filter((_, i) => i !== index));
+    if (triggerType === "time") {
+      setTimeSteps((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      setGravitySteps((prev) => prev.filter((_, i) => i !== index));
+    }
   }
 
   function handleSubmit(event: FormEvent): void {
@@ -55,41 +87,43 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-neutral-800 bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-200">Profiles</h3>
-        <button onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Profiles</h3>
+        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
           Close
         </button>
       </div>
 
-      {profilesQuery.isLoading && <p className="text-xs text-neutral-500">Loading profiles...</p>}
+      {profilesQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading profiles...</p>}
       {profilesQuery.data && profilesQuery.data.length === 0 && (
-        <p className="text-xs text-neutral-500">No profiles yet.</p>
+        <p className="text-xs text-neutral-600 dark:text-neutral-500">No profiles yet.</p>
       )}
       {profilesQuery.data && profilesQuery.data.length > 0 && (
         <ul className="space-y-2">
           {profilesQuery.data.map((profile) => (
             <li
               key={profile.id}
-              className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2"
+              className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
             >
               <div>
-                <p className="text-sm text-neutral-200">{profile.name}</p>
-                <p className="text-xs text-neutral-500">{profile.steps.length} steps</p>
+                <p className="text-sm text-neutral-800 dark:text-neutral-200">{profile.name}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-500">
+                  {profile.triggerType === "gravity" ? "Gravity-based" : "Time-based"} · {profile.steps.length} steps
+                </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => activateMutation.mutate(profile.id)}
                   disabled={activateMutation.isPending}
-                  className="rounded-lg px-2.5 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10"
+                  className="rounded-lg px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                 >
                   Activate
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(profile.id)}
                   disabled={deleteMutation.isPending}
-                  className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+                  className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
                 >
                   Delete
                 </button>
@@ -102,57 +136,107 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
       <button
         onClick={() => activateMutation.mutate(null)}
         disabled={activateMutation.isPending}
-        className="text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-300"
+        className="text-xs text-neutral-600 dark:text-neutral-500 underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
       >
         Stop following a profile
       </button>
 
-      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-800 pt-3">
-        <p className="text-xs font-medium text-neutral-300">New profile</p>
+      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
+        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">New profile</p>
         <input
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+          className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
           placeholder="Ale ferment"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
         />
 
+        <div className="flex gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setTriggerType("time")}
+            className={`rounded-lg px-2.5 py-1 ${triggerType === "time" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+          >
+            Time-based
+          </button>
+          <button
+            type="button"
+            onClick={() => hasHydrometer && setTriggerType("gravity")}
+            disabled={!hasHydrometer}
+            title={hasHydrometer ? undefined : "Assign a hydrometer to this device first (see the Hydrometer tab)"}
+            className={`rounded-lg px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+          >
+            Gravity-based
+          </button>
+        </div>
+
         <div className="space-y-1">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                type="number"
-                className="w-24 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-neutral-500"
-                value={step.atMinutes}
-                onChange={(e) => updateStep(i, { atMinutes: Number(e.target.value) })}
-                title="Minutes from profile start"
-              />
-              <span className="text-xs text-neutral-600">min →</span>
-              <input
-                type="number"
-                step="0.1"
-                className="w-20 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-neutral-500"
-                value={step.targetC}
-                onChange={(e) => updateStep(i, { targetC: Number(e.target.value) })}
-              />
-              <span className="text-xs text-neutral-600">°C</span>
-              {steps.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeStep(i)}
-                  className="ml-auto text-xs text-neutral-600 hover:text-red-400"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
+          {triggerType === "time"
+            ? timeSteps.map((step, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="w-24 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    value={step.atMinutes}
+                    onChange={(e) => updateTimeStep(i, { atMinutes: Number(e.target.value) })}
+                    title="Minutes from profile start"
+                  />
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">min →</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    value={step.targetC}
+                    onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
+                  />
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
+                  {timeSteps.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(i)}
+                      className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))
+            : gravitySteps.map((step, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="w-24 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    value={step.atGravitySg}
+                    onChange={(e) => updateGravityStep(i, { atGravitySg: Number(e.target.value) })}
+                    title="Specific gravity threshold"
+                  />
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">SG →</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    value={step.targetC}
+                    onChange={(e) => updateGravityStep(i, { targetC: Number(e.target.value) })}
+                  />
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
+                  {gravitySteps.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(i)}
+                      className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
         </div>
 
         <button
           type="button"
           onClick={addStep}
-          className="text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-300"
+          className="text-xs text-neutral-600 dark:text-neutral-500 underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
         >
           Add step
         </button>
@@ -161,7 +245,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 disabled:opacity-50"
+            className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
           >
             {createMutation.isPending ? "Creating..." : "Create profile"}
           </button>

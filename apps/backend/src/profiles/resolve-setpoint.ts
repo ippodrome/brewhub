@@ -1,11 +1,11 @@
-import type { ProfileStep } from "@brewhub/shared-types";
+import type { TimeProfileStep } from "@brewhub/shared-types";
 
 /**
  * Linear interpolation between consecutive profile steps, sorted by
  * atMinutes. Before the first step's time, holds the first step's value;
  * after the last step's time, holds the last step's value (no extrapolation).
  */
-export function resolveProfileSetpoint(steps: ProfileStep[], elapsedMinutes: number): number {
+export function resolveProfileSetpoint(steps: TimeProfileStep[], elapsedMinutes: number): number {
   const sorted = [...steps].sort((a, b) => a.atMinutes - b.atMinutes);
   const first = sorted[0];
   if (!first) {

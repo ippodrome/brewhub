@@ -8,8 +8,11 @@ import {
   updateDeviceConfig,
 } from "../db/repositories/device-configs.repo.js";
 import { getProfile } from "../db/repositories/profiles.repo.js";
+import { getHydrometerForFermenter } from "../db/repositories/hydrometers.repo.js";
+import { getLatestGravityReading } from "../db/repositories/gravity-readings.repo.js";
 import { publishDeviceConfig } from "../mqtt/publish-config.js";
 import { resolveProfileSetpoint } from "./resolve-setpoint.js";
+import { resolveProfileSetpointByGravity } from "./resolve-setpoint-by-gravity.js";
 
 export interface ProfileSchedulerOptions {
   db: Database.Database;
@@ -40,8 +43,23 @@ export function runProfileSchedulerTick(options: Omit<ProfileSchedulerOptions, "
       continue;
     }
 
-    const elapsedMinutes = (nowMs - profileStartedAt) / 60000;
-    const resolvedSetpointC = resolveProfileSetpoint(profile.steps, elapsedMinutes);
+    let resolvedSetpointC: number;
+    if (profile.triggerType === "gravity") {
+      const hydrometer = getHydrometerForFermenter(options.db, deviceId);
+      if (!hydrometer) {
+        options.logger.warn({ deviceId, profileId: activeProfileId }, "Gravity profile active but no hydrometer assigned, skipping");
+        continue;
+      }
+      const latest = getLatestGravityReading(options.db, hydrometer.id);
+      if (!latest || latest.specific_gravity === null) {
+        options.logger.warn({ deviceId, profileId: activeProfileId }, "Gravity profile active but no gravity reading yet, skipping");
+        continue;
+      }
+      resolvedSetpointC = resolveProfileSetpointByGravity(profile.steps, latest.specific_gravity);
+    } else {
+      const elapsedMinutes = (nowMs - profileStartedAt) / 60000;
+      resolvedSetpointC = resolveProfileSetpoint(profile.steps, elapsedMinutes);
+    }
 
     const current = getDeviceConfig(options.db, deviceId);
     if (current && Math.abs(current.setpointC - resolvedSetpointC) < SETPOINT_CHANGE_EPSILON_C) {
