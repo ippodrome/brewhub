@@ -9,6 +9,18 @@ const EMPTY_TIME_STEPS: TimeProfileStep[] = [
   { atMinutes: 0, targetC: 20 },
   { atMinutes: 1440, targetC: 20 },
 ];
+
+/** atMinutes is still the storage/wire format (shared-types, backend interpolation) — this is purely a friendlier input for it. */
+function splitMinutes(totalMinutes: number): { days: number; hours: number; minutes: number } {
+  const clamped = Math.max(0, Math.floor(totalMinutes));
+  const days = Math.floor(clamped / 1440);
+  const hours = Math.floor((clamped % 1440) / 60);
+  const minutes = clamped % 60;
+  return { days, hours, minutes };
+}
+function combineMinutes(days: number, hours: number, minutes: number): number {
+  return Math.max(0, days) * 1440 + Math.max(0, hours) * 60 + Math.max(0, minutes);
+}
 const EMPTY_GRAVITY_STEPS: GravityProfileStep[] = [
   { atGravitySg: 1.05, targetC: 20 },
   { atGravitySg: 1.01, targetC: 20 },
@@ -172,35 +184,69 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
 
         <div className="space-y-1">
           {triggerType === "time"
-            ? timeSteps.map((step, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    className="w-24 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
-                    value={step.atMinutes}
-                    onChange={(e) => updateTimeStep(i, { atMinutes: Number(e.target.value) })}
-                    title="Minutes from profile start"
-                  />
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">min →</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
-                    value={step.targetC}
-                    onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
-                  />
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
-                  {timeSteps.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeStep(i)}
-                      className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))
+            ? timeSteps.map((step, i) => {
+                const { days, hours, minutes } = splitMinutes(step.atMinutes);
+                const setPart = (patch: Partial<{ days: number; hours: number; minutes: number }>) => {
+                  const next = { days, hours, minutes, ...patch };
+                  updateTimeStep(i, { atMinutes: combineMinutes(next.days, next.hours, next.minutes) });
+                };
+                return (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-14 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        value={days}
+                        onChange={(e) => setPart({ days: Math.max(0, Number(e.target.value)) })}
+                        title="Days from profile start"
+                      />
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">d</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        className="w-12 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        value={hours}
+                        onChange={(e) => setPart({ hours: Math.max(0, Number(e.target.value)) })}
+                        title="Hours"
+                      />
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">h</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        className="w-12 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        value={minutes}
+                        onChange={(e) => setPart({ minutes: Math.max(0, Number(e.target.value)) })}
+                        title="Minutes"
+                      />
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">min →</span>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                      value={step.targetC}
+                      onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
+                    />
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
+                    {timeSteps.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeStep(i)}
+                        className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             : gravitySteps.map((step, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input

@@ -2,6 +2,7 @@ import { NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./pages/Dashboard";
 import { Devices } from "./pages/Devices";
 import { Firmware } from "./pages/Firmware";
+import { Guide } from "./pages/Guide";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
 import { RequireAuth } from "./components/RequireAuth";
@@ -30,6 +31,9 @@ function Shell(): JSX.Element {
             </NavLink>
             <NavLink to="/firmware" className={navLinkClass}>
               Firmware
+            </NavLink>
+            <NavLink to="/guide" className={navLinkClass}>
+              Guide
             </NavLink>
             <NavLink to="/settings" className={navLinkClass}>
               Settings
@@ -82,6 +86,7 @@ export function App(): JSX.Element {
         <Route path="/" element={<Dashboard />} />
         <Route path="/devices" element={<Devices />} />
         <Route path="/firmware" element={<Firmware />} />
+        <Route path="/guide" element={<Guide />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
