@@ -82,6 +82,7 @@ function FlashButton({ build }: { build: FirmwareBuild }): JSX.Element {
 function FirmwareRow({ build, registeredDeviceIds }: { build: FirmwareBuild; registeredDeviceIds: Set<string> }): JSX.Element {
   const queryClient = useQueryClient();
   const isRegistered = registeredDeviceIds.has(build.deviceId);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const otaMutation = useMutation({
     mutationFn: () => triggerOta(build.deviceId, build.id),
@@ -112,13 +113,23 @@ function FirmwareRow({ build, registeredDeviceIds }: { build: FirmwareBuild; reg
           >
             {otaMutation.isPending ? "Pushing..." : "Push OTA"}
           </button>
-          <button
-            onClick={() => deleteMutation.mutate()}
-            disabled={deleteMutation.isPending}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
-          >
-            Remove
-          </button>
+          {confirmingDelete ? (
+            <button
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="rounded-lg bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-500/20"
+            >
+              {deleteMutation.isPending ? "Removing..." : "Confirm delete"}
+            </button>
+          ) : (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              onBlur={() => setConfirmingDelete(false)}
+              className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+            >
+              Remove
+            </button>
+          )}
         </div>
       </div>
       {otaMutation.isSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400">OTA push sent.</p>}
