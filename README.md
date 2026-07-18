@@ -1,5 +1,7 @@
 # BrewHub / UniBrew Control
 
+[![CI](https://github.com/ippodrome/brewhub/actions/workflows/ci.yml/badge.svg)](https://github.com/ippodrome/brewhub/actions/workflows/ci.yml)
+
 Unified control platform for kegerators and fermentation chambers, replacing Keg Cop and BrewPiLess.
 
 See [claude.md](./claude.md) for the full project spec and [DECISIONS.md](./DECISIONS.md) for resolved architecture decisions and rationale.
@@ -127,4 +129,6 @@ Once a hydrometer has readings, use the calibration slope/offset fields on the H
 
 ## Tests
 
-`pnpm -r test` runs backend + shared-types unit tests. `pnpm -r typecheck` and `pnpm -r build` across the whole workspace. Firmware: `pio test -e native` (control-loop logic, no hardware) and `pio run -e <env>` (real compile check) per board under `firmware/`.
+`pnpm -r test` runs backend + shared-types unit tests (frontend has none yet). `pnpm -r typecheck` and `pnpm -r build` across the whole workspace — run `build` before `typecheck`/`test` on a clean checkout, since `shared-types` is a compiled package the others need `dist/` from. Firmware: `pio test -e native` (control-loop logic, no hardware) and `pio run -e <env>` (real compile check) per board under `firmware/`.
+
+All of the above runs automatically on every push/PR via GitHub Actions (`.github/workflows/ci.yml`) — three jobs: monorepo verification, a `pio run` compile matrix across all four boards, and the native control-loop tests. Every board's `secrets.h` (gitignored, holds real WiFi/MQTT credentials) is stubbed from its committed `.example` file for the compile check — no real credentials or device pairing involved.
