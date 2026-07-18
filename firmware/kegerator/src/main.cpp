@@ -9,6 +9,7 @@
 #include "ConfigStore.h"
 #include "MqttClientWrapper.h"
 #include "FlowMeterManager.h"
+#include "OtaUpdater.h"
 #include "pins.h"
 #include "secrets.h"
 
@@ -19,6 +20,7 @@ using unibrew::ControlOutput;
 using unibrew::ConfigStore;
 using unibrew::FlowMeterManager;
 using unibrew::MqttClientWrapper;
+using unibrew::OtaUpdater;
 using unibrew::SensorManager;
 using unibrew::SensorSample;
 using unibrew::kSensorAddressHexLength;
@@ -30,10 +32,14 @@ constexpr uint32_t kStatusIntervalMs = 30000;
 constexpr uint32_t kWatchdogTimeoutS = 30;
 constexpr float kMinPlausibleC = -50.0f;
 constexpr float kMaxPlausibleC = 150.0f;
+// Must match shared-types' FirmwareBoardSchema exactly — used only for the
+// MQTT discovery announcement (see MqttClientWrapper::begin).
+constexpr const char* BOARD_NAME = "kegerator-kegcop";
 
 ControlLoop controlLoop;
 ConfigStore configStore;
 MqttClientWrapper mqttClient;
+OtaUpdater otaUpdater;
 
 // Keg Cop wires each sensor role to its own separate OneWire bus (see
 // pins.h) rather than a shared bus — one SensorManager per pin, each
@@ -167,6 +173,31 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
         controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)");
 }
 
+// Blocking (see OtaUpdater doc comment) — the watchdog can't be fed from
+// loop() during this call, so it's suspended around it and only re-armed if
+// the update failed (success reboots before returning at all).
+void onOtaMessage(const uint8_t* payload, unsigned int length) {
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload, length);
+    if (err) {
+        Serial.printf("[ota] invalid JSON: %s\n", err.c_str());
+        return;
+    }
+    if (!doc["url"].is<const char*>() || !doc["md5"].is<const char*>()) {
+        Serial.println("[ota] message missing url/md5");
+        return;
+    }
+
+    const char* url = doc["url"];
+    const char* md5 = doc["md5"];
+    Serial.printf("[ota] update requested: version=%s url=%s\n",
+                  doc["version"].is<const char*>() ? doc["version"].as<const char*>() : "?", url);
+
+    esp_task_wdt_delete(nullptr);
+    otaUpdater.begin(url, md5);
+    esp_task_wdt_add(nullptr); // only reached on failure
+}
+
 float selectControlTemperature(const SensorSample* samples, size_t count) {
     if (count == 0) {
         return NAN;
@@ -284,8 +315,9 @@ void setup() {
 
     connectWiFi();
 
-    mqttClient.begin(MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, DEVICE_ID, FIRMWARE_VERSION);
+    mqttClient.begin(MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, DEVICE_ID, FIRMWARE_VERSION, BOARD_NAME);
     mqttClient.setConfigCallback(onConfigMessage);
+    mqttClient.setOtaCallback(onOtaMessage);
 }
 
 void loop() {

@@ -7,13 +7,16 @@ MqttClientWrapper* MqttClientWrapper::activeInstance_ = nullptr;
 
 void MqttClientWrapper::begin(const char* host, uint16_t port, const char* username,
                                const char* password, const char* deviceId,
-                               const char* firmwareVersion) {
+                               const char* firmwareVersion, const char* board) {
     deviceId_ = deviceId;
     username_ = username;
     password_ = password;
     statusTopic_ = String("unibrew/") + deviceId_ + "/status";
     telemetryTopic_ = String("unibrew/") + deviceId_ + "/telemetry";
     configTopic_ = String("unibrew/") + deviceId_ + "/config";
+    otaTopic_ = String("unibrew/") + deviceId_ + "/ota";
+    discoveryTopic_ = String("unibrew/") + deviceId_ + "/discovery";
+    gravityTopic_ = String("unibrew/") + deviceId_ + "/gravity";
 
     JsonDocument lwtDoc;
     lwtDoc["deviceId"] = deviceId_;
@@ -23,6 +26,12 @@ void MqttClientWrapper::begin(const char* host, uint16_t port, const char* usern
     lwtDoc["ts"] = 0;
     serializeJson(lwtDoc, offlineLwtPayload_);
 
+    JsonDocument discoveryDoc;
+    discoveryDoc["deviceId"] = deviceId_;
+    discoveryDoc["board"] = board;
+    discoveryDoc["firmwareVersion"] = firmwareVersion;
+    serializeJson(discoveryDoc, discoveryPayload_);
+
     activeInstance_ = this;
     mqtt_.setServer(host, port);
     mqtt_.setCallback(staticMessageCallback);
@@ -31,6 +40,10 @@ void MqttClientWrapper::begin(const char* host, uint16_t port, const char* usern
 
 void MqttClientWrapper::setConfigCallback(ConfigCallback callback) {
     configCallback_ = callback;
+}
+
+void MqttClientWrapper::setOtaCallback(OtaCallback callback) {
+    otaCallback_ = callback;
 }
 
 bool MqttClientWrapper::connected() {
@@ -61,6 +74,8 @@ void MqttClientWrapper::attemptReconnect() {
 
     if (ok) {
         mqtt_.subscribe(configTopic_.c_str(), 1);
+        mqtt_.subscribe(otaTopic_.c_str(), 1);
+        mqtt_.publish(discoveryTopic_.c_str(), discoveryPayload_.c_str(), true); // retained
         reconnectBackoffMs_ = 1000; // reset backoff on success
     } else {
         reconnectBackoffMs_ = min(reconnectBackoffMs_ * 2, kMaxReconnectBackoffMs);
@@ -75,9 +90,15 @@ void MqttClientWrapper::publishStatus(const char* json) {
     mqtt_.publish(statusTopic_.c_str(), json, true);
 }
 
+void MqttClientWrapper::publishGravity(const char* json) {
+    mqtt_.publish(gravityTopic_.c_str(), json, false);
+}
+
 void MqttClientWrapper::handleMessage(char* topic, uint8_t* payload, unsigned int length) {
     if (configTopic_.equals(topic) && configCallback_ != nullptr) {
         configCallback_(payload, length);
+    } else if (otaTopic_.equals(topic) && otaCallback_ != nullptr) {
+        otaCallback_(payload, length);
     }
 }
 

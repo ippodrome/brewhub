@@ -1,15 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Device, Tap } from "@brewhub/shared-types";
+import { LOW_VOLUME_THRESHOLD_PERCENT, type Device, type Tap, type TapMeasurementType } from "@brewhub/shared-types";
 import { createTap, deleteTap, listPours, listTaps, updateTap } from "../api/taps";
+import { listDevices } from "../api/devices";
+import { useLiveTelemetry } from "../ws/useLiveTelemetry";
 
 function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
   const fraction = tap.fullVolumeMl > 0 ? tap.remainingVolumeMl / tap.fullVolumeMl : 0;
   const percent = Math.max(0, Math.min(100, fraction * 100));
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
       <div
-        className={`h-full rounded-full ${percent < 15 ? "bg-red-400" : "bg-emerald-400"}`}
+        className={`h-full rounded-full ${percent < LOW_VOLUME_THRESHOLD_PERCENT ? "bg-red-400" : "bg-emerald-400"}`}
         style={{ width: `${percent}%` }}
       />
     </div>
@@ -37,37 +39,45 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   });
 
   return (
-    <li className="space-y-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+    <li className="space-y-2 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-neutral-200">
+          <p className="text-sm text-neutral-800 dark:text-neutral-200">
             {tap.name}
-            {tap.style && <span className="text-neutral-500"> · {tap.style}</span>}
+            {tap.style && <span className="text-neutral-600 dark:text-neutral-500"> · {tap.style}</span>}
           </p>
-          <p className="text-xs text-neutral-500">
-            Flow {tap.flowIndex}
+          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+            {tap.measurementType === "flow" ? (
+              <>Flow {tap.flowIndex}</>
+            ) : (
+              <>
+                Scale {tap.weightDeviceId ?? "(unassigned)"} · channel {tap.weightIndex}
+              </>
+            )}
             {tap.abv !== null && <> · {tap.abv}% ABV</>}
             {tap.ibu !== null && <> · {tap.ibu} IBU</>}
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setPoursOpen((v) => !v)}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-          >
-            Pours
-          </button>
+          {tap.measurementType === "flow" && (
+            <button
+              onClick={() => setPoursOpen((v) => !v)}
+              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+            >
+              Pours
+            </button>
+          )}
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
             New keg
           </button>
           <button
             onClick={() => deleteMutation.mutate()}
             disabled={deleteMutation.isPending}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+            className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
           >
             Remove
           </button>
@@ -76,13 +86,13 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
 
       <div className="space-y-1">
         <VolumeBar tap={tap} />
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-600 dark:text-neutral-500">
           {Math.round(tap.remainingVolumeMl)} / {Math.round(tap.fullVolumeMl)} mL remaining
         </p>
       </div>
 
       {poursOpen && (
-        <div className="border-t border-neutral-800 pt-2 text-xs text-neutral-500">
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs text-neutral-600 dark:text-neutral-500">
           {poursQuery.isLoading && <p>Loading...</p>}
           {poursQuery.data && poursQuery.data.length === 0 && <p>No pours logged yet.</p>}
           {poursQuery.data && poursQuery.data.length > 0 && (
@@ -101,38 +111,74 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   );
 }
 
+const inputClass =
+  "w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
+
 export function TapManager({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
-  const [flowIndex, setFlowIndex] = useState("0");
+  const [measurementType, setMeasurementType] = useState<TapMeasurementType>("flow");
   const [name, setName] = useState("");
   const [style, setStyle] = useState("");
   const [abv, setAbv] = useState("");
   const [ibu, setIbu] = useState("");
-  const [pulsesPerLiter, setPulsesPerLiter] = useState("500");
   const [fullVolumeMl, setFullVolumeMl] = useState("19000");
+
+  const [flowIndex, setFlowIndex] = useState("0");
+  const [pulsesPerLiter, setPulsesPerLiter] = useState("500");
+
+  const [weightDeviceId, setWeightDeviceId] = useState("");
+  const [weightIndex, setWeightIndex] = useState("0");
+  const [tareWeightG, setTareWeightG] = useState("");
+  const [fullWeightG, setFullWeightG] = useState("");
+
   const queryClient = useQueryClient();
+  const { telemetryByDevice } = useLiveTelemetry();
 
   const tapsQuery = useQuery({
     queryKey: ["taps", device.id],
     queryFn: () => listTaps(device.id),
   });
 
+  const devicesQuery = useQuery({ queryKey: ["devices"], queryFn: listDevices });
+  const kegScaleDevices = (devicesQuery.data ?? []).filter((d) => d.type === "keg_scale");
+  const currentScaleGrams = weightDeviceId ? telemetryByDevice[weightDeviceId]?.weights?.[0]?.grams : undefined;
+
   const createMutation = useMutation({
     mutationFn: () =>
-      createTap(device.id, {
-        flowIndex: Number(flowIndex),
-        name,
-        style: style || undefined,
-        abv: abv ? Number(abv) : undefined,
-        ibu: ibu ? Number(ibu) : undefined,
-        pulsesPerLiter: Number(pulsesPerLiter),
-        fullVolumeMl: Number(fullVolumeMl),
-      }),
+      createTap(
+        device.id,
+        measurementType === "flow"
+          ? {
+              measurementType: "flow",
+              flowIndex: Number(flowIndex),
+              name,
+              style: style || undefined,
+              abv: abv ? Number(abv) : undefined,
+              ibu: ibu ? Number(ibu) : undefined,
+              pulsesPerLiter: Number(pulsesPerLiter),
+              fullVolumeMl: Number(fullVolumeMl),
+            }
+          : {
+              measurementType: "weight",
+              weightDeviceId,
+              weightIndex: Number(weightIndex),
+              tareWeightG: Number(tareWeightG),
+              fullWeightG: Number(fullWeightG),
+              name,
+              style: style || undefined,
+              abv: abv ? Number(abv) : undefined,
+              ibu: ibu ? Number(ibu) : undefined,
+              fullVolumeMl: Number(fullVolumeMl),
+            },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["taps", device.id] });
       setName("");
       setStyle("");
       setAbv("");
       setIbu("");
+      setTareWeightG("");
+      setFullWeightG("");
     },
   });
 
@@ -142,17 +188,17 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-neutral-800 bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-200">Taps</h3>
-        <button onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Taps</h3>
+        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
           Close
         </button>
       </div>
 
-      {tapsQuery.isLoading && <p className="text-xs text-neutral-500">Loading taps...</p>}
+      {tapsQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading taps...</p>}
       {tapsQuery.data && tapsQuery.data.length === 0 && (
-        <p className="text-xs text-neutral-500">No taps configured yet.</p>
+        <p className="text-xs text-neutral-600 dark:text-neutral-500">No taps configured yet.</p>
       )}
       {tapsQuery.data && tapsQuery.data.length > 0 && (
         <ul className="space-y-2">
@@ -162,27 +208,60 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
         </ul>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-800 pt-3">
-        <p className="text-xs font-medium text-neutral-300">New tap</p>
+      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
+        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">New tap</p>
+
+        <div className="space-y-1">
+          <label className={labelClass}>Measurement</label>
+          <select
+            className={inputClass}
+            value={measurementType}
+            onChange={(e) => setMeasurementType(e.target.value as TapMeasurementType)}
+          >
+            <option value="flow">Flow meter</option>
+            <option value="weight">Keg scale</option>
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-500">Flow input</label>
-            <select
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-              value={flowIndex}
-              onChange={(e) => setFlowIndex(e.target.value)}
-            >
-              {Array.from({ length: 9 }, (_, i) => (
-                <option key={i} value={i}>
-                  Flow {i}
+          {measurementType === "flow" ? (
+            <div className="space-y-1">
+              <label className={labelClass}>Flow input</label>
+              <select className={inputClass} value={flowIndex} onChange={(e) => setFlowIndex(e.target.value)}>
+                {Array.from({ length: 9 }, (_, i) => (
+                  <option key={i} value={i}>
+                    Flow {i}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className={labelClass}>Scale device</label>
+              <select
+                className={inputClass}
+                value={weightDeviceId}
+                onChange={(e) => setWeightDeviceId(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Select a keg_scale device
                 </option>
-              ))}
-            </select>
-          </div>
+                {kegScaleDevices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.id})
+                  </option>
+                ))}
+              </select>
+              {kegScaleDevices.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-500">No keg_scale devices added yet.</p>
+              )}
+            </div>
+          )}
           <div className="space-y-1">
-            <label className="text-xs text-neutral-500">Name</label>
+            <label className={labelClass}>Name</label>
             <input
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+              className={inputClass}
               placeholder="House IPA"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -193,62 +272,112 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
 
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
-            <label className="text-xs text-neutral-500">Style</label>
-            <input
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-              value={style}
-              onChange={(e) => setStyle(e.target.value)}
-            />
+            <label className={labelClass}>Style</label>
+            <input className={inputClass} value={style} onChange={(e) => setStyle(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-neutral-500">ABV %</label>
+            <label className={labelClass}>ABV %</label>
             <input
               type="number"
               step="0.1"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+              className={inputClass}
               value={abv}
               onChange={(e) => setAbv(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-neutral-500">IBU</label>
-            <input
-              type="number"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-              value={ibu}
-              onChange={(e) => setIbu(e.target.value)}
-            />
+            <label className={labelClass}>IBU</label>
+            <input type="number" className={inputClass} value={ibu} onChange={(e) => setIbu(e.target.value)} />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-500">Calibration (pulses/L)</label>
-            <input
-              type="number"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-              value={pulsesPerLiter}
-              onChange={(e) => setPulsesPerLiter(e.target.value)}
-              required
-            />
+        {measurementType === "flow" ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className={labelClass}>Calibration (pulses/L)</label>
+              <input
+                type="number"
+                className={inputClass}
+                value={pulsesPerLiter}
+                onChange={(e) => setPulsesPerLiter(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className={labelClass}>Full keg volume (mL)</label>
+              <input
+                type="number"
+                className={inputClass}
+                value={fullVolumeMl}
+                onChange={(e) => setFullVolumeMl(e.target.value)}
+                required
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-500">Full keg volume (mL)</label>
-            <input
-              type="number"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-              value={fullVolumeMl}
-              onChange={(e) => setFullVolumeMl(e.target.value)}
-              required
-            />
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <label className={labelClass}>Scale channel</label>
+                <input
+                  type="number"
+                  min={0}
+                  className={inputClass}
+                  value={weightIndex}
+                  onChange={(e) => setWeightIndex(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={labelClass}>Empty (tare) weight (g)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={tareWeightG}
+                  onChange={(e) => setTareWeightG(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={labelClass}>Full keg weight (g)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={fullWeightG}
+                  onChange={(e) => setFullWeightG(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className={labelClass}>Full keg volume (mL)</label>
+              <input
+                type="number"
+                className={inputClass}
+                value={fullVolumeMl}
+                onChange={(e) => setFullVolumeMl(e.target.value)}
+                required
+              />
+            </div>
+            {weightDeviceId && (
+              <p className="text-xs text-neutral-600 dark:text-neutral-500">
+                Current scale reading:{" "}
+                {currentScaleGrams === undefined
+                  ? "no reading yet"
+                  : currentScaleGrams === null
+                    ? "sensor fault"
+                    : `${Math.round(currentScaleGrams)} g`}{" "}
+                — place an empty keg and note the value for "Empty weight", then a full keg for "Full weight".
+              </p>
+            )}
+          </>
+        )}
 
         <div className="flex justify-end pt-2">
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 disabled:opacity-50"
+            className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
           >
             {createMutation.isPending ? "Adding..." : "Add tap"}
           </button>

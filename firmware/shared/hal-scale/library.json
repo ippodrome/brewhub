@@ -1,0 +1,10 @@
+{
+  "name": "unibrew-hal-scale",
+  "version": "0.1.0",
+  "description": "HX711 load-cell reading and NVS-persisted tare offset (LoadCellManager) for UniBrew keg_scale devices. keg_scale-only — no dependency on unibrew-control or unibrew-hal-temp.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "bogde/HX711": "^0.7.5"
+  }
+}

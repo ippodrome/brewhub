@@ -1,0 +1,11 @@
+{
+  "name": "unibrew-hal-temp",
+  "version": "0.1.0",
+  "description": "DS18B20 multi-sensor discovery/reading (SensorManager) for UniBrew ESP32 devices. Used by boards with temperature sensors (kegerator, fermenter) — keg_scale has none and does not reference this library.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "milesburton/DallasTemperature": "^3.11.0",
+    "paulstoffregen/OneWire": "^2.3.7"
+  }
+}

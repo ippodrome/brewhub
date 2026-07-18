@@ -1,0 +1,11 @@
+{
+  "name": "unibrew-hal-mqtt",
+  "version": "0.1.0",
+  "description": "MQTT transport (MqttClientWrapper) for UniBrew ESP32 devices. Used by every board type — no dependency on unibrew-control, so keg_scale (which has no control loop) can reference it standalone.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "knolleary/PubSubClient": "^2.8",
+    "bblanchon/ArduinoJson": "^7.0.4"
+  }
+}

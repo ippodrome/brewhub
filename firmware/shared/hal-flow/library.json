@@ -1,0 +1,7 @@
+{
+  "name": "unibrew-hal-flow",
+  "version": "0.1.0",
+  "description": "Debounced interrupt-driven flow meter pulse counting (FlowMeterManager) for UniBrew ESP32 devices. Kegerator-only today (up to 9 flow inputs) — no external registry dependency beyond Arduino core.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}

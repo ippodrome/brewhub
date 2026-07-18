@@ -3,18 +3,22 @@ import type { FlowReading } from "@brewhub/shared-types";
 import { applyFlowReadingUpdate, getTapByFlowIndex } from "../db/repositories/taps.repo.js";
 import { extendPourEvent, startPourEvent } from "../db/repositories/pour-events.repo.js";
 import { processFlowReading } from "./process-flow-reading.js";
+import { checkLowVolumeCrossing, type LowVolumeEvent } from "./low-volume-event.js";
 
 const POUR_IDLE_TIMEOUT_MS = 5000;
 
-/** Drives processFlowReading's decision into actual DB writes. No-ops if the flow index has no configured tap. */
+/** Drives processFlowReading's decision into actual DB writes. No-ops (returns null) if the flow index has no configured tap. */
 export function applyFlowReading(
   db: Database.Database,
   deviceId: string,
   flowReading: FlowReading,
   nowMs: number,
-): void {
+): LowVolumeEvent | null {
   const tap = getTapByFlowIndex(db, deviceId, flowReading.index);
-  if (!tap) return;
+  // pulses_per_liter is guaranteed non-null by the taps CHECK constraint for
+  // measurement_type='flow' (which getTapByFlowIndex already filters on) —
+  // this guard just gives TS the same guarantee the DB already enforces.
+  if (!tap || tap.pulses_per_liter === null) return null;
 
   const action = processFlowReading(
     {
@@ -31,7 +35,7 @@ export function applyFlowReading(
 
   switch (action.type) {
     case "none":
-      return;
+      return null;
 
     case "resync":
       applyFlowReadingUpdate(db, tap.id, {
@@ -40,7 +44,7 @@ export function applyFlowReading(
         pourInProgressId: action.finalizePour ? null : tap.pour_in_progress_id,
         lastActivityAt: action.finalizePour ? null : tap.last_activity_at,
       });
-      return;
+      return null;
 
     case "start_pour": {
       const pourId = startPourEvent(db, tap.id, action.volumeMl, nowMs);
@@ -50,7 +54,7 @@ export function applyFlowReading(
         pourInProgressId: pourId,
         lastActivityAt: nowMs,
       });
-      return;
+      return checkLowVolumeCrossing(db, tap, action.remainingVolumeMl);
     }
 
     case "extend_pour":
@@ -63,7 +67,7 @@ export function applyFlowReading(
         pourInProgressId: tap.pour_in_progress_id,
         lastActivityAt: nowMs,
       });
-      return;
+      return checkLowVolumeCrossing(db, tap, action.remainingVolumeMl);
 
     case "finalize_pour":
       applyFlowReadingUpdate(db, tap.id, {
@@ -72,6 +76,6 @@ export function applyFlowReading(
         pourInProgressId: null,
         lastActivityAt: null,
       });
-      return;
+      return null;
   }
 }

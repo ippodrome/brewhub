@@ -3,14 +3,16 @@ import { CreateTapRequestSchema, UpdateTapRequestSchema } from "@brewhub/shared-
 import { getDevice } from "../db/repositories/devices.repo.js";
 import {
   deleteTap,
+  findTapChannelConflict,
   getTap,
-  getTapByFlowIndex,
   insertTap,
   listTapsForDevice,
   resetKeg,
   updateTapDetails,
 } from "../db/repositories/taps.repo.js";
 import { listPourEventsForTap } from "../db/repositories/pour-events.repo.js";
+import { publishTapVolumeDiscovery, removeTapVolumeDiscovery } from "../mqtt/publish-ha-discovery.js";
+import { publishTapState } from "../mqtt/publish-tap-state.js";
 
 export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/api/devices/:id/taps", { preHandler: fastify.verifyAuth }, async (request, reply) => {
@@ -32,13 +34,36 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: "Invalid request body", details: parsed.error.flatten() });
     }
 
-    if (getTapByFlowIndex(fastify.db, id, parsed.data.flowIndex)) {
-      return reply
-        .code(409)
-        .send({ error: `Flow index ${parsed.data.flowIndex} already has a tap on this device` });
+    if (parsed.data.measurementType === "weight") {
+      const weightDevice = getDevice(fastify.db, parsed.data.weightDeviceId);
+      if (!weightDevice || weightDevice.type !== "keg_scale") {
+        return reply.code(400).send({ error: "weightDeviceId must reference an existing keg_scale device" });
+      }
+    }
+
+    const conflict =
+      parsed.data.measurementType === "flow"
+        ? findTapChannelConflict(fastify.db, id, {
+            measurementType: "flow",
+            flowIndex: parsed.data.flowIndex,
+          })
+        : findTapChannelConflict(fastify.db, id, {
+            measurementType: "weight",
+            weightDeviceId: parsed.data.weightDeviceId,
+            weightIndex: parsed.data.weightIndex,
+          });
+    if (conflict) {
+      return reply.code(409).send({ error: "That measurement channel already has a tap configured" });
     }
 
     const tap = insertTap(fastify.db, id, parsed.data);
+
+    const device = getDevice(fastify.db, id);
+    if (device) {
+      publishTapVolumeDiscovery(fastify.mqttClient, device, tap);
+      publishTapState(fastify.mqttClient, id, tap);
+    }
+
     return reply.code(201).send(tap);
   });
 
@@ -62,14 +87,46 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
       const { resetKeg: shouldResetKeg, ...details } = parsed.data;
 
       if (Object.keys(details).length > 0) {
-        if (details.flowIndex !== undefined && details.flowIndex !== tap.flowIndex) {
-          const existing = getTapByFlowIndex(fastify.db, id, details.flowIndex);
-          if (existing && existing.id !== numericId) {
-            return reply
-              .code(409)
-              .send({ error: `Flow index ${details.flowIndex} already has a tap on this device` });
+        if (tap.measurementType === "flow" && details.flowIndex !== undefined && details.flowIndex !== tap.flowIndex) {
+          const existing = findTapChannelConflict(
+            fastify.db,
+            id,
+            { measurementType: "flow", flowIndex: details.flowIndex },
+            numericId,
+          );
+          if (existing) {
+            return reply.code(409).send({ error: "That measurement channel already has a tap configured" });
           }
         }
+
+        if (tap.measurementType === "weight") {
+          const nextWeightDeviceId = details.weightDeviceId ?? tap.weightDeviceId;
+          const nextWeightIndex = details.weightIndex ?? tap.weightIndex;
+          if (details.weightDeviceId !== undefined) {
+            const weightDevice = getDevice(fastify.db, details.weightDeviceId);
+            if (!weightDevice || weightDevice.type !== "keg_scale") {
+              return reply
+                .code(400)
+                .send({ error: "weightDeviceId must reference an existing keg_scale device" });
+            }
+          }
+          if (
+            nextWeightDeviceId !== null &&
+            nextWeightIndex !== null &&
+            (details.weightDeviceId !== undefined || details.weightIndex !== undefined)
+          ) {
+            const existing = findTapChannelConflict(
+              fastify.db,
+              id,
+              { measurementType: "weight", weightDeviceId: nextWeightDeviceId, weightIndex: nextWeightIndex },
+              numericId,
+            );
+            if (existing) {
+              return reply.code(409).send({ error: "That measurement channel already has a tap configured" });
+            }
+          }
+        }
+
         updateTapDetails(fastify.db, numericId, details);
       }
 
@@ -77,7 +134,16 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
         resetKeg(fastify.db, numericId);
       }
 
-      return getTap(fastify.db, numericId);
+      const updated = getTap(fastify.db, numericId);
+      if (updated) {
+        const device = getDevice(fastify.db, id);
+        // Republish discovery too (not just state) so a renamed tap's HA
+        // entity name stays in sync — cheap, retained, idempotent.
+        if (device) publishTapVolumeDiscovery(fastify.mqttClient, device, updated);
+        publishTapState(fastify.mqttClient, id, updated);
+      }
+
+      return updated;
     },
   );
 
@@ -94,6 +160,7 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       deleteTap(fastify.db, numericId);
+      removeTapVolumeDiscovery(fastify.mqttClient, id, numericId);
       return reply.code(204).send();
     },
   );

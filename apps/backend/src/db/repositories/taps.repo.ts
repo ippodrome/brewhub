@@ -1,37 +1,48 @@
 import type Database from "better-sqlite3";
-import type { CreateTapRequest, Tap } from "@brewhub/shared-types";
+import type { CreateTapRequest, Tap, UpdateTapRequest } from "@brewhub/shared-types";
 
 export interface TapRow {
   id: number;
   device_id: string;
-  flow_index: number;
+  measurement_type: string;
+  flow_index: number | null;
+  pulses_per_liter: number | null;
+  weight_device_id: string | null;
+  weight_index: number | null;
+  tare_weight_g: number | null;
+  full_weight_g: number | null;
   name: string;
   style: string | null;
   abv: number | null;
   ibu: number | null;
   notes: string | null;
   image_url: string | null;
-  pulses_per_liter: number;
   full_volume_ml: number;
   remaining_volume_ml: number;
   last_pulse_count: number;
   pour_in_progress_id: number | null;
   last_activity_at: number | null;
   created_at: number;
+  low_volume_notified: number;
 }
 
 function toTap(row: TapRow): Tap {
   return {
     id: row.id,
     deviceId: row.device_id,
+    measurementType: row.measurement_type as Tap["measurementType"],
     flowIndex: row.flow_index,
+    pulsesPerLiter: row.pulses_per_liter,
+    weightDeviceId: row.weight_device_id,
+    weightIndex: row.weight_index,
+    tareWeightG: row.tare_weight_g,
+    fullWeightG: row.full_weight_g,
     name: row.name,
     style: row.style,
     abv: row.abv,
     ibu: row.ibu,
     notes: row.notes,
     imageUrl: row.image_url,
-    pulsesPerLiter: row.pulses_per_liter,
     fullVolumeMl: row.full_volume_ml,
     remainingVolumeMl: row.remaining_volume_ml,
     createdAt: row.created_at,
@@ -40,7 +51,7 @@ function toTap(row: TapRow): Tap {
 
 export function listTapsForDevice(db: Database.Database, deviceId: string): Tap[] {
   const rows = db
-    .prepare<[string], TapRow>("SELECT * FROM taps WHERE device_id = ? ORDER BY flow_index ASC")
+    .prepare<[string], TapRow>("SELECT * FROM taps WHERE device_id = ? ORDER BY id ASC")
     .all(deviceId);
   return rows.map(toTap);
 }
@@ -62,70 +73,169 @@ export function getTapByFlowIndex(
   return (
     db
       .prepare<[string, number], TapRow>(
-        "SELECT * FROM taps WHERE device_id = ? AND flow_index = ?",
+        "SELECT * FROM taps WHERE device_id = ? AND measurement_type = 'flow' AND flow_index = ?",
       )
       .get(deviceId, flowIndex) ?? null
   );
 }
 
-export function insertTap(db: Database.Database, deviceId: string, req: CreateTapRequest): Tap {
-  const result = db
-    .prepare(
-      `INSERT INTO taps
-         (device_id, flow_index, name, style, abv, ibu, notes, image_url,
-          pulses_per_liter, full_volume_ml, remaining_volume_ml)
-       VALUES (@deviceId, @flowIndex, @name, @style, @abv, @ibu, @notes, @imageUrl,
-               @pulsesPerLiter, @fullVolumeMl, @fullVolumeMl)`,
+/** All weight-measured taps currently reading from a given (weightDeviceId, weightIndex) channel — normally 0 or 1. */
+export function listTapsByWeightChannel(
+  db: Database.Database,
+  weightDeviceId: string,
+  weightIndex: number,
+): TapRow[] {
+  return db
+    .prepare<[string, number], TapRow>(
+      "SELECT * FROM taps WHERE measurement_type = 'weight' AND weight_device_id = ? AND weight_index = ?",
     )
-    .run({
-      deviceId,
-      flowIndex: req.flowIndex,
-      name: req.name,
-      style: req.style ?? null,
-      abv: req.abv ?? null,
-      ibu: req.ibu ?? null,
-      notes: req.notes ?? null,
-      imageUrl: req.imageUrl ?? null,
-      pulsesPerLiter: req.pulsesPerLiter,
-      fullVolumeMl: req.fullVolumeMl,
-    });
+    .all(weightDeviceId, weightIndex);
+}
+
+function findWeightTapConflict(
+  db: Database.Database,
+  weightDeviceId: string,
+  weightIndex: number,
+  excludeTapId?: number,
+): TapRow | null {
+  const existing = listTapsByWeightChannel(db, weightDeviceId, weightIndex);
+  return existing.find((t) => t.id !== excludeTapId) ?? null;
+}
+
+export function insertTap(db: Database.Database, deviceId: string, req: CreateTapRequest): Tap {
+  const result =
+    req.measurementType === "flow"
+      ? db
+          .prepare(
+            `INSERT INTO taps
+               (device_id, measurement_type, flow_index, pulses_per_liter, name, style, abv, ibu,
+                notes, image_url, full_volume_ml, remaining_volume_ml)
+             VALUES (@deviceId, 'flow', @flowIndex, @pulsesPerLiter, @name, @style, @abv, @ibu,
+                     @notes, @imageUrl, @fullVolumeMl, @fullVolumeMl)`,
+          )
+          .run({
+            deviceId,
+            flowIndex: req.flowIndex,
+            pulsesPerLiter: req.pulsesPerLiter,
+            name: req.name,
+            style: req.style ?? null,
+            abv: req.abv ?? null,
+            ibu: req.ibu ?? null,
+            notes: req.notes ?? null,
+            imageUrl: req.imageUrl ?? null,
+            fullVolumeMl: req.fullVolumeMl,
+          })
+      : db
+          .prepare(
+            `INSERT INTO taps
+               (device_id, measurement_type, weight_device_id, weight_index, tare_weight_g, full_weight_g,
+                name, style, abv, ibu, notes, image_url, full_volume_ml, remaining_volume_ml)
+             VALUES (@deviceId, 'weight', @weightDeviceId, @weightIndex, @tareWeightG, @fullWeightG,
+                     @name, @style, @abv, @ibu, @notes, @imageUrl, @fullVolumeMl, @fullVolumeMl)`,
+          )
+          .run({
+            deviceId,
+            weightDeviceId: req.weightDeviceId,
+            weightIndex: req.weightIndex,
+            tareWeightG: req.tareWeightG,
+            fullWeightG: req.fullWeightG,
+            name: req.name,
+            style: req.style ?? null,
+            abv: req.abv ?? null,
+            ibu: req.ibu ?? null,
+            notes: req.notes ?? null,
+            imageUrl: req.imageUrl ?? null,
+            fullVolumeMl: req.fullVolumeMl,
+          });
+
   const tap = getTap(db, Number(result.lastInsertRowid));
   if (!tap) throw new Error("Failed to read back inserted tap");
   return tap;
 }
 
+/**
+ * measurementType is immutable after creation (see UpdateTapRequestSchema
+ * doc comment in shared-types) — this only ever updates fields within
+ * whichever field group the tap's existing measurementType already uses.
+ */
 export function updateTapDetails(
   db: Database.Database,
   id: number,
-  patch: Partial<CreateTapRequest>,
+  patch: Omit<UpdateTapRequest, "resetKeg">,
 ): void {
   const current = getTapRow(db, id);
   if (!current) return;
 
+  if (current.measurement_type === "flow") {
+    db.prepare(
+      `UPDATE taps SET
+         flow_index = @flowIndex, pulses_per_liter = @pulsesPerLiter, name = @name, style = @style,
+         abv = @abv, ibu = @ibu, notes = @notes, image_url = @imageUrl, full_volume_ml = @fullVolumeMl
+       WHERE id = @id`,
+    ).run({
+      id,
+      flowIndex: patch.flowIndex ?? current.flow_index,
+      pulsesPerLiter: patch.pulsesPerLiter ?? current.pulses_per_liter,
+      name: patch.name ?? current.name,
+      style: patch.style ?? current.style,
+      abv: patch.abv ?? current.abv,
+      ibu: patch.ibu ?? current.ibu,
+      notes: patch.notes ?? current.notes,
+      imageUrl: patch.imageUrl ?? current.image_url,
+      fullVolumeMl: patch.fullVolumeMl ?? current.full_volume_ml,
+    });
+    return;
+  }
+
   db.prepare(
     `UPDATE taps SET
-       flow_index = @flowIndex, name = @name, style = @style, abv = @abv, ibu = @ibu,
-       notes = @notes, image_url = @imageUrl, pulses_per_liter = @pulsesPerLiter,
-       full_volume_ml = @fullVolumeMl
+       weight_device_id = @weightDeviceId, weight_index = @weightIndex, tare_weight_g = @tareWeightG,
+       full_weight_g = @fullWeightG, name = @name, style = @style, abv = @abv, ibu = @ibu,
+       notes = @notes, image_url = @imageUrl, full_volume_ml = @fullVolumeMl
      WHERE id = @id`,
   ).run({
     id,
-    flowIndex: patch.flowIndex ?? current.flow_index,
+    weightDeviceId: patch.weightDeviceId ?? current.weight_device_id,
+    weightIndex: patch.weightIndex ?? current.weight_index,
+    tareWeightG: patch.tareWeightG ?? current.tare_weight_g,
+    fullWeightG: patch.fullWeightG ?? current.full_weight_g,
     name: patch.name ?? current.name,
     style: patch.style ?? current.style,
     abv: patch.abv ?? current.abv,
     ibu: patch.ibu ?? current.ibu,
     notes: patch.notes ?? current.notes,
     imageUrl: patch.imageUrl ?? current.image_url,
-    pulsesPerLiter: patch.pulsesPerLiter ?? current.pulses_per_liter,
     fullVolumeMl: patch.fullVolumeMl ?? current.full_volume_ml,
   });
 }
 
+/**
+ * Conflict check for POST (new tap) and PATCH (tap changing its channel).
+ * Only meaningful within one measurement type — a flow tap and a weight
+ * tap can never collide since they occupy disjoint column groups.
+ */
+export function findTapChannelConflict(
+  db: Database.Database,
+  deviceId: string,
+  req: { measurementType: "flow"; flowIndex: number } | { measurementType: "weight"; weightDeviceId: string; weightIndex: number },
+  excludeTapId?: number,
+): TapRow | null {
+  if (req.measurementType === "flow") {
+    const existing = getTapByFlowIndex(db, deviceId, req.flowIndex);
+    return existing && existing.id !== excludeTapId ? existing : null;
+  }
+  return findWeightTapConflict(db, req.weightDeviceId, req.weightIndex, excludeTapId);
+}
+
 export function resetKeg(db: Database.Database, id: number): void {
   db.prepare(
-    "UPDATE taps SET remaining_volume_ml = full_volume_ml WHERE id = ?",
+    "UPDATE taps SET remaining_volume_ml = full_volume_ml, low_volume_notified = 0 WHERE id = ?",
   ).run(id);
+}
+
+/** Marks the one-time low-volume notification as sent — see the migration's doc comment on this column. */
+export function markLowVolumeNotified(db: Database.Database, id: number): void {
+  db.prepare("UPDATE taps SET low_volume_notified = 1 WHERE id = ?").run(id);
 }
 
 export function deleteTap(db: Database.Database, id: number): boolean {
@@ -133,7 +243,7 @@ export function deleteTap(db: Database.Database, id: number): boolean {
   return result.changes > 0;
 }
 
-/** Persists the result of processing one flow reading against a tap. */
+/** Persists the result of processing one flow reading against a flow-measured tap. */
 export function applyFlowReadingUpdate(
   db: Database.Database,
   tapId: number,
@@ -158,4 +268,13 @@ export function applyFlowReadingUpdate(
     pourInProgressId: update.pourInProgressId,
     lastActivityAt: update.lastActivityAt,
   });
+}
+
+/** Persists a recomputed remaining volume for a weight-measured tap — stateless, no pour bookkeeping. */
+export function applyWeightReadingUpdate(
+  db: Database.Database,
+  tapId: number,
+  remainingVolumeMl: number,
+): void {
+  db.prepare("UPDATE taps SET remaining_volume_ml = ? WHERE id = ?").run(remainingVolumeMl, tapId);
 }

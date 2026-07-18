@@ -1,0 +1,7 @@
+{
+  "name": "unibrew-hal-control",
+  "version": "0.1.0",
+  "description": "NVS persistence of ControlLoop config for UniBrew ESP32 devices. Kept separate from the other unibrew-hal-* libraries because it depends on unibrew-control's ControlLoop.h — boards with no control loop (e.g. keg_scale) never reference this one.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}
