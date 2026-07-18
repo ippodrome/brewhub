@@ -35,6 +35,12 @@ export const DeviceConfigSchema = z.object({
   // logic) — firmware falls back to its first reading if null/unmatched.
   controlSensorAddress: z.string().nullable(),
   overrideExpiresAt: z.number().int().nullable().optional(),
+  // keg_scale devices only: bumping this to a new (non-null) value tells the
+  // device to tare (zero) its load cell on the next config apply. Inert for
+  // every other device type — same "declarative config, device self-corrects"
+  // pattern as the rest of this schema (ADR-004), so a tare request survives
+  // MQTT drops the same way a setpoint change does.
+  tareRequestId: z.number().int().nullable().optional(),
 });
 export type DeviceConfig = z.infer<typeof DeviceConfigSchema>;
 
@@ -58,4 +64,5 @@ export const DEFAULT_DEVICE_CONFIG: DeviceConfig = {
   pidWindowMs: 300000,
   controlSensorAddress: null,
   overrideExpiresAt: null,
+  tareRequestId: null,
 };

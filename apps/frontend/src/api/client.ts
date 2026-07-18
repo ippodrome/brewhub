@@ -25,7 +25,12 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
-  if (options.body) headers.set("Content-Type", "application/json");
+  // FormData bodies (multipart uploads) need the browser to set their own
+  // Content-Type with a boundary — setting it to application/json here
+  // would silently corrupt the request.
+  if (options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(path, { ...options, headers });

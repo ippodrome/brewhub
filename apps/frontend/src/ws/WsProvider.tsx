@@ -73,10 +73,27 @@ export function WsProvider({ children }: { children: ReactNode }): JSX.Element {
             return { ...prev, devices: message.payload };
           }
           if (message.type === "telemetry") {
+            // Telemetry is itself proof of life (the backend treats it the
+            // same way — see index.ts's onTelemetry handler), independent
+            // of the periodic status heartbeat. Patch isOnline here too, not
+            // just telemetryByDevice, so a device that's telemetry-only
+            // online again (e.g. status arrives every 30s but telemetry
+            // every 2-5s) doesn't show stale "Offline" in the UI until the
+            // next status message happens to arrive.
             return {
               ...prev,
               telemetryByDevice: { ...prev.telemetryByDevice, [message.payload.deviceId]: message.payload },
+              devices: prev.devices.map((d) =>
+                d.id === message.payload.deviceId && !d.isOnline ? { ...d, isOnline: true } : d,
+              ),
             };
+          }
+          if (message.type === "gravity") {
+            // Nothing in the frontend consumes live gravity pushes yet —
+            // HydrometerManager polls via REST instead (see api/history.ts).
+            // Explicit no-op branch rather than falling into the status
+            // branch below, which assumes its payload shape.
+            return prev;
           }
           // A status message is also the most current word on isOnline for that
           // device — patch it into the device list, not just statusByDevice,

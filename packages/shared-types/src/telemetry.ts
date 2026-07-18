@@ -27,11 +27,27 @@ export const FlowReadingSchema = z.object({
 });
 export type FlowReading = z.infer<typeof FlowReadingSchema>;
 
+/**
+ * One load cell channel's reading, published by keg_scale devices. index
+ * mirrors the flows[]/sensors[] pattern (which of the device's load cell
+ * inputs), grams is the raw (tared, calibrated) weight — a keg's remaining
+ * volume is derived from this on the backend via a tap's tareWeightG/
+ * fullWeightG, not computed on the device. grams is null when the HX711
+ * doesn't report ready in time (see LoadCellManager::readGrams), same
+ * explicit-fault convention as SensorReading.temperatureC.
+ */
+export const WeightReadingSchema = z.object({
+  index: z.number().int().nonnegative(),
+  grams: z.number().nullable(),
+});
+export type WeightReading = z.infer<typeof WeightReadingSchema>;
+
 /** Published to unibrew/{deviceId}/telemetry. */
 export const TelemetryPayloadSchema = z.object({
   deviceId: z.string().min(1),
   ts: z.number().int(),
   sensors: z.array(SensorReadingSchema),
   flows: z.array(FlowReadingSchema).default([]),
+  weights: z.array(WeightReadingSchema).default([]),
 });
 export type TelemetryPayload = z.infer<typeof TelemetryPayloadSchema>;

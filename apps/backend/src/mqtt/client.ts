@@ -1,6 +1,12 @@
 import mqtt, { type MqttClient } from "mqtt";
-import { parseTopic, StatusPayloadSchema, TelemetryPayloadSchema } from "@brewhub/shared-types";
-import type { StatusPayload, TelemetryPayload } from "@brewhub/shared-types";
+import {
+  DiscoveryMessageSchema,
+  GravityTelemetryPayloadSchema,
+  parseTopic,
+  StatusPayloadSchema,
+  TelemetryPayloadSchema,
+} from "@brewhub/shared-types";
+import type { DiscoveryMessage, GravityTelemetryPayload, StatusPayload, TelemetryPayload } from "@brewhub/shared-types";
 import type { FastifyBaseLogger } from "fastify";
 
 export interface MqttClientOptions {
@@ -10,6 +16,8 @@ export interface MqttClientOptions {
   logger: FastifyBaseLogger;
   onStatus: (payload: StatusPayload) => void;
   onTelemetry: (payload: TelemetryPayload) => void;
+  onDiscovery: (message: DiscoveryMessage) => void;
+  onGravity: (payload: GravityTelemetryPayload) => void;
 }
 
 export function createMqttClient(options: MqttClientOptions): MqttClient {
@@ -20,8 +28,8 @@ export function createMqttClient(options: MqttClientOptions): MqttClient {
   });
 
   client.on("connect", () => {
-    options.logger.info("MQTT connected, subscribing to status/telemetry topics");
-    client.subscribe(["unibrew/+/status", "unibrew/+/telemetry"], (err) => {
+    options.logger.info("MQTT connected, subscribing to status/telemetry/discovery/gravity topics");
+    client.subscribe(["unibrew/+/status", "unibrew/+/telemetry", "unibrew/+/discovery", "unibrew/+/gravity"], (err) => {
       if (err) options.logger.error({ err }, "MQTT subscribe failed");
     });
   });
@@ -55,6 +63,20 @@ export function createMqttClient(options: MqttClientOptions): MqttClient {
         return;
       }
       options.onTelemetry(parsed.data);
+    } else if (parsedTopic.kind === "discovery") {
+      const parsed = DiscoveryMessageSchema.safeParse(json);
+      if (!parsed.success) {
+        options.logger.warn({ topic, error: parsed.error.flatten() }, "Invalid discovery payload, dropping");
+        return;
+      }
+      options.onDiscovery(parsed.data);
+    } else if (parsedTopic.kind === "gravity") {
+      const parsed = GravityTelemetryPayloadSchema.safeParse(json);
+      if (!parsed.success) {
+        options.logger.warn({ topic, error: parsed.error.flatten() }, "Invalid gravity payload, dropping");
+        return;
+      }
+      options.onGravity(parsed.data);
     }
   });
 

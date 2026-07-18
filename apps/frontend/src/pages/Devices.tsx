@@ -8,10 +8,10 @@ export function Devices(): JSX.Element {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-neutral-100">Devices</h1>
+        <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Devices</h1>
         <button
           onClick={() => setAddOpen(true)}
-          className="rounded-lg bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-900"
+          className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-100 dark:text-neutral-900"
         >
           Add device
         </button>

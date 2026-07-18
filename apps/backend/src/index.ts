@@ -1,3 +1,5 @@
+import type Database from "better-sqlite3";
+import type { MqttClient } from "mqtt";
 import { loadConfig } from "./config/env.js";
 import { createDbClient } from "./db/client.js";
 import { runMigrations } from "./db/migrate.js";
@@ -7,17 +9,53 @@ import { startPresenceSweep } from "./mqtt/presence.js";
 import { startProfileScheduler } from "./profiles/scheduler.js";
 import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
+import { insertFlowReading } from "./db/repositories/flow-readings.repo.js";
+import { insertWeightReading } from "./db/repositories/weight-readings.repo.js";
+import { insertGravityReading } from "./db/repositories/gravity-readings.repo.js";
 import { getDeviceConfig, updateDeviceConfig } from "./db/repositories/device-configs.repo.js";
 import { listSensorsForDevice, recordSensorSeen } from "./db/repositories/device-sensors.repo.js";
+import { upsertDiscoveredDevice } from "./db/repositories/discovered-devices.repo.js";
+import { getHydrometerByIdentifier } from "./db/repositories/hydrometers.repo.js";
+import { applyCalibration } from "./gravity/apply-calibration.js";
+import { ensureVapidKeys } from "./db/repositories/notification-settings.repo.js";
+import { getTapByFlowIndex, listTapsByWeightChannel, listTapsForDevice } from "./db/repositories/taps.repo.js";
 import { publishDeviceConfig } from "./mqtt/publish-config.js";
+import {
+  publishDeviceOnlineDiscovery,
+  publishTapVolumeDiscovery,
+  publishTemperatureSensorDiscovery,
+} from "./mqtt/publish-ha-discovery.js";
+import { publishTapState } from "./mqtt/publish-tap-state.js";
+import { sendNotification } from "./notifications/send.js";
 import { applyFlowReading } from "./taps/apply-flow-reading.js";
+import { applyWeightReading } from "./taps/apply-weight-reading.js";
 import { broadcastToAll } from "./ws/broadcast.js";
+
+/**
+ * Republishes every HA discovery config + current tap state on startup —
+ * covers brokers without persistent retained-message storage (the bundled
+ * one has persistence on, but an externally-supplied broker might not).
+ * Idempotent: republishing an unchanged config is a no-op from HA's side.
+ */
+function republishHomeAssistantDiscovery(db: Database.Database, mqttClient: MqttClient): void {
+  for (const device of listDevices(db)) {
+    publishDeviceOnlineDiscovery(mqttClient, device);
+    for (const sensor of listSensorsForDevice(db, device.id)) {
+      publishTemperatureSensorDiscovery(mqttClient, device, sensor.address, sensor.label);
+    }
+    for (const tap of listTapsForDevice(db, device.id)) {
+      publishTapVolumeDiscovery(mqttClient, device, tap);
+      publishTapState(mqttClient, device.id, tap);
+    }
+  }
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
 
   const db = createDbClient(config.DB_PATH);
   runMigrations(db);
+  ensureVapidKeys(db);
 
   const app = await buildApp({ db, config });
 
@@ -36,7 +74,8 @@ async function main(): Promise<void> {
       broadcastToAll({ type: "status", payload });
     },
     onTelemetry: (payload) => {
-      if (!getDevice(db, payload.deviceId)) {
+      const device = getDevice(db, payload.deviceId);
+      if (!device) {
         app.log.warn({ deviceId: payload.deviceId }, "Telemetry for unknown device, dropping");
         return;
       }
@@ -45,11 +84,50 @@ async function main(): Promise<void> {
       setDeviceOnline(db, payload.deviceId, true, payload.ts);
 
       for (const sensor of payload.sensors) {
-        recordSensorSeen(db, payload.deviceId, sensor.address, payload.ts);
+        const isNewSensor = recordSensorSeen(db, payload.deviceId, sensor.address, payload.ts);
+        if (isNewSensor) {
+          publishTemperatureSensorDiscovery(mqttClient, device, sensor.address, null);
+        }
       }
 
       for (const flow of payload.flows) {
-        applyFlowReading(db, payload.deviceId, flow, payload.ts);
+        const lowVolumeEvent = applyFlowReading(db, payload.deviceId, flow, payload.ts);
+        insertFlowReading(db, payload.deviceId, flow.index, payload.ts, flow.pulseCount);
+        if (lowVolumeEvent) {
+          // Fire-and-forget — network calls to push/Telegram/Discord must
+          // never block MQTT message processing. sendNotification already
+          // isolates failures per-channel internally.
+          void sendNotification(db, app.log, {
+            title: "Keg running low",
+            body: `${lowVolumeEvent.tapName} is running low.`,
+          });
+        }
+        const flowTap = getTapByFlowIndex(db, payload.deviceId, flow.index);
+        if (flowTap) {
+          publishTapState(mqttClient, payload.deviceId, {
+            id: flowTap.id,
+            remainingVolumeMl: flowTap.remaining_volume_ml,
+            fullVolumeMl: flowTap.full_volume_ml,
+          });
+        }
+      }
+
+      for (const weight of payload.weights) {
+        const lowVolumeEvents = applyWeightReading(db, payload.deviceId, weight);
+        insertWeightReading(db, payload.deviceId, weight.index, payload.ts, weight.grams);
+        for (const event of lowVolumeEvents) {
+          void sendNotification(db, app.log, {
+            title: "Keg running low",
+            body: `${event.tapName} is running low.`,
+          });
+        }
+        for (const weightTap of listTapsByWeightChannel(db, payload.deviceId, weight.index)) {
+          publishTapState(mqttClient, weightTap.device_id, {
+            id: weightTap.id,
+            remainingVolumeMl: weightTap.remaining_volume_ml,
+            fullVolumeMl: weightTap.full_volume_ml,
+          });
+        }
       }
 
       // If a control sensor has just been auto-designated (first-ever sensor
@@ -68,19 +146,45 @@ async function main(): Promise<void> {
 
       broadcastToAll({ type: "telemetry", payload });
     },
+    onDiscovery: (message) => {
+      // Deliberately no getDevice() gate here, unlike status/telemetry —
+      // discovery exists specifically to surface devices that AREN'T
+      // registered yet (see README "Adding a device").
+      upsertDiscoveredDevice(db, message);
+    },
+    onGravity: (payload) => {
+      // Unmatched identifiers are dropped, not an error — a gravity-bridge
+      // (or an external HA/ESPHome bridge publishing to the same contract)
+      // may see other people's Tilts too.
+      for (const reading of payload.readings) {
+        const hydrometer = getHydrometerByIdentifier(db, reading.identifier);
+        if (!hydrometer) {
+          app.log.debug({ identifier: reading.identifier }, "Gravity reading for unconfigured hydrometer, dropping");
+          continue;
+        }
+        const gravitySg = applyCalibration(hydrometer, reading.gravitySg);
+        insertGravityReading(db, hydrometer.id, payload.ts, gravitySg, reading.temperatureC, reading.batteryPercent ?? null);
+      }
+      broadcastToAll({ type: "gravity", payload });
+    },
   });
 
   app.decorate("mqttClient", mqttClient);
+  republishHomeAssistantDiscovery(db, mqttClient);
 
   startPresenceSweep({
     db,
     logger: app.log,
     intervalMs: config.PRESENCE_SWEEP_INTERVAL_MS,
     staleAfterMs: config.PRESENCE_STALE_AFTER_MS,
-    onDeviceOffline: () => {
+    onDeviceOffline: (deviceId) => {
       // Sweep-driven transitions don't carry a fresh status payload, so
       // broadcast a full snapshot rather than fabricate one.
       broadcastToAll({ type: "device_list", payload: listDevices(db) });
+      void sendNotification(db, app.log, {
+        title: "Device offline",
+        body: `${deviceId} has gone offline.`,
+      });
     },
   });
 

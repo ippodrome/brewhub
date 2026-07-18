@@ -25,10 +25,25 @@ export function runMigrations(db: Database.Database): void {
     if (applied.has(file)) continue;
 
     const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf-8");
+
+    // Some migrations recreate a table that other tables reference via FK
+    // (SQLite can't ALTER a CHECK/NOT NULL constraint in place — see 0003,
+    // 0006). PRAGMA foreign_keys is a no-op inside a transaction, so it has
+    // to be toggled off around the whole migration, with an explicit
+    // foreign_key_check afterward to catch anything the migration's own
+    // INSERT...SELECT got wrong (dangling references DROP TABLE itself
+    // wouldn't otherwise complain about).
+    db.pragma("foreign_keys = OFF");
     const applyMigration = db.transaction(() => {
       db.exec(sql);
       db.prepare("INSERT INTO schema_migrations (id) VALUES (?)").run(file);
     });
     applyMigration();
+    db.pragma("foreign_keys = ON");
+
+    const violations = db.pragma("foreign_key_check") as unknown[];
+    if (violations.length > 0) {
+      throw new Error(`Migration ${file} left dangling foreign keys: ${JSON.stringify(violations)}`);
+    }
   }
 }
