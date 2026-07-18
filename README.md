@@ -22,6 +22,8 @@ pnpm --filter @brewhub/frontend dev      # BACKEND_PORT=<port> if backend isn't 
 
 `docker-compose.yml` is just `backend` + `caddy` — it does **not** bundle an MQTT broker by default, since plenty of self-hosters (this project's own target deployment included) already run one for other things (Home Assistant, other IoT gear, etc.) and running a second broker would be pure waste. Pick one of the two paths below.
 
+By default `backend` **pulls** a prebuilt image (`ghcr.io/ippodrome/brewhub-backend`, published by `.github/workflows/publish-backend-image.yml` on every push to `main` and on version tags) rather than building from source — nothing to compile on whatever host you're running this on. Pin a specific version instead of always tracking `latest` by setting `BREWHUB_IMAGE_TAG` in `.env` (e.g. to a `sha-xxxxxxx` or a released version tag).
+
 ```
 pnpm --filter @brewhub/frontend build              # Caddy serves this static output directly
 cd docker
@@ -31,7 +33,7 @@ cp .env.example .env                                # then fill in real secrets
 **Path A — you already have an MQTT broker** (this is the Unraid target deployment's actual situation): edit `.env` — set `MQTT_URL` to that broker's address (e.g. `mqtt://192.168.1.50:1883`, or `mqtt://<container-name>:1883` if it's reachable by Docker DNS on the same host), and `MQTT_USERNAME`/`MQTT_PASSWORD` to a user you create *on that broker* for BrewHub's backend (however you manage that broker's users/ACLs — it's not BrewHub's to configure). Then:
 
 ```
-docker compose up --build
+docker compose up
 ```
 
 That's it — no `mosquitto` service starts, `backend` connects straight to your existing broker. Every physical BrewHub device (ESP32) also needs its own user on that same broker (see "Adding a device" below) — created the same way you manage any other user on it.
@@ -40,8 +42,16 @@ That's it — no `mosquitto` service starts, `backend` connects straight to your
 
 ```
 mosquitto_passwd -b -c mosquitto/passwd brewhub-backend <password>   # match MQTT_PASSWORD in .env
-docker compose -f docker-compose.yml -f docker-compose.mosquitto.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.mosquitto.yml up
 ```
+
+**Testing uncommitted changes to the backend** (not the usual path — most of the time you want the published image above): add the dev overlay, which builds from local source instead of pulling, and don't forget `--build` or Compose won't know anything changed:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+**Unraid**: the `caddy` service carries a `net.unraid.docker.webui` label, so once the stack is running under Unraid's Docker tab (native Compose support on 6.12+, or the community "Docker Compose Manager" plugin on older versions) it gets a proper WebUI button pointing straight at the app — no separate Unraid-specific template needed, the same `docker-compose.yml` works as-is. A traditional Community-Applications-store template (for one-click installs by other people) is a bigger, deliberately deferred step — see DECISIONS.md ADR-017.
 
 Either way, frontend/API end up at `https://localhost:8443` (self-signed cert via Caddy's `tls internal { on_demand }`, since the deployment IP isn't known ahead of time). Port 8443 was chosen instead of 443 because the reference deployment host already runs NginxProxyManager on the standard range — see DECISIONS.md ADR-007.
 
