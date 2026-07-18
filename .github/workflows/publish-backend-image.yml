@@ -4,6 +4,18 @@ on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
+    # Only rebuild when something the backend image actually contains has
+    # changed — a frontend-only or docs-only push was rebuilding and
+    # republishing an identical image before this. Tag pushes always
+    # trigger regardless of paths (GitHub doesn't evaluate path filters for
+    # tag events), which is what we want for an intentional release.
+    paths:
+      - "apps/backend/**"
+      - "packages/shared-types/**"
+      - "docker/backend.Dockerfile"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/publish-backend-image.yml"
 
 jobs:
   publish:
