@@ -1,16 +1,31 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 namespace unibrew {
 
+// identifier is fixed-size, owned storage (not a const char* into shared/
+// static state) deliberately — RaptParser's identifier is built per-device
+// from that device's MAC, so a shared static buffer would get overwritten
+// by the next parsed reading in the same scan pass, silently corrupting
+// every earlier GravityReading's identifier still sitting in the scan's
+// results array. TiltParser's identifiers happen to be fixed string
+// literals (one per colour) so this wasn't reachable there, but the same
+// struct is shared by both parsers — safe-by-construction beats
+// safe-only-because-the-other-caller-happens-not-to-trigger-it.
 struct GravityReading {
-    const char* identifier;
+    char identifier[24];
     float gravitySg;
     float temperatureC;
     bool hasBattery;
     float batteryPercent;
 };
+
+inline void setIdentifier(GravityReading& reading, const char* value) {
+    std::strncpy(reading.identifier, value, sizeof(reading.identifier) - 1);
+    reading.identifier[sizeof(reading.identifier) - 1] = '\0';
+}
 
 // Tilt Hydrometer: a standard iBeacon advertisement (Apple manufacturer ID
 // 0x004C) whose fixed proximity UUID identifies the colour, with major=degF

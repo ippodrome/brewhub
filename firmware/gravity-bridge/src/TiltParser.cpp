@@ -48,7 +48,7 @@ bool TiltParser::tryParse(const std::string& manufacturerData, GravityReading& o
     const uint16_t major = (static_cast<uint16_t>(bytes[20]) << 8) | bytes[21]; // degrees Fahrenheit
     const uint16_t minor = (static_cast<uint16_t>(bytes[22]) << 8) | bytes[23]; // SG * 1000
 
-    out.identifier = identifier;
+    setIdentifier(out, identifier);
     out.temperatureC = (static_cast<float>(major) - 32.0f) * 5.0f / 9.0f;
     out.gravitySg = static_cast<float>(minor) / 1000.0f;
     out.hasBattery = false;
