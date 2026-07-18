@@ -1,40 +1,40 @@
 services:
-  mosquitto:
-    image: eclipse-mosquitto:2
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
-      - mosquitto-data:/mosquitto/data
-      - mosquitto-log:/mosquitto/log
-
   backend:
     build:
       context: ..
       dockerfile: docker/backend.Dockerfile
     restart: unless-stopped
-    depends_on:
-      - mosquitto
     environment:
       NODE_ENV: production
       PORT: "3000"
       DB_PATH: /data/brewhub.db
-      MQTT_URL: mqtt://mosquitto:1883
-      MQTT_USERNAME: ${MQTT_BACKEND_USERNAME}
-      MQTT_PASSWORD: ${MQTT_BACKEND_PASSWORD}
+      # Point these at whatever MQTT broker you're using — your own existing
+      # one, or the bundled one from docker-compose.mosquitto.yml (which also
+      # sets MQTT_URL for you). See docker/README section on bring-your-own-broker.
+      MQTT_URL: ${MQTT_URL}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # Optional — only needed to trigger OTA firmware updates. See README
+      # "Firmware / flashing".
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
       - backend-data:/data
     expose:
       - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   caddy:
     image: caddy:2
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "8443:8443"
     volumes:
@@ -46,8 +46,6 @@ services:
       - caddy-config:/config
 
 volumes:
-  mosquitto-data:
-  mosquitto-log:
   backend-data:
   caddy-data:
   caddy-config:

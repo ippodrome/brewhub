@@ -8,6 +8,15 @@ const EnvSchema = z.object({
   MQTT_USERNAME: z.string().optional(),
   MQTT_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters"),
+  // Only needed to trigger OTA updates — the backend otherwise has no way to
+  // know its own LAN-reachable address (it only knows it's listening on
+  // 0.0.0.0:3000 internally; Caddy is what's actually exposed). e.g.
+  // https://192.168.1.50:8443. OTA-trigger requests 400 with a clear error
+  // if this isn't set, rather than publishing a broken download URL.
+  // "" is treated the same as unset — docker-compose.yml's ${PUBLIC_URL:-}
+  // substitution sets an empty string, not an absent key, when the .env
+  // doesn't define it, which z.string().url() would otherwise reject.
+  PUBLIC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   PRESENCE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   PRESENCE_STALE_AFTER_MS: z.coerce.number().int().positive().default(60000),
   PROFILE_SCHEDULER_INTERVAL_MS: z.coerce.number().int().positive().default(60000),

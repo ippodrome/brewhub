@@ -1,0 +1,37 @@
+# Optional overlay: adds a bundled Mosquitto broker for people who don't
+# already run one. Skip this file entirely if you have an existing broker —
+# just set MQTT_URL/MQTT_USERNAME/MQTT_PASSWORD in .env to point at it
+# instead (and create a brewhub-backend user + one user per physical device
+# on that broker yourself — see DECISIONS.md ADR-008 on why every device
+# needs its own credentials).
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.mosquitto.yml up --build
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "-w2", "localhost", "1883"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
