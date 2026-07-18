@@ -1,0 +1,7 @@
+{
+  "name": "unibrew-hal-ota",
+  "version": "0.1.0",
+  "description": "HTTPS-download OTA firmware updates (OtaUpdater) for UniBrew ESP32 devices. Used by all three boards. No registry dependencies — HTTPClient/WiFiClientSecure/Update are all Arduino-ESP32 core.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}
