@@ -1,9 +1,20 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BrewHub</title>
+    <!-- Applies the theme class before first paint, synchronously, so a
+         saved "light" preference doesn't flash dark first — ThemeProvider
+         (src/theme/ThemeProvider.tsx) owns this same logic afterward for
+         all subsequent theme changes; kept in sync deliberately. -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem("brewhub_theme");
+        var dark = stored === "light" ? false : stored === "dark" ? true : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
