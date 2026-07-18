@@ -1,8 +1,7 @@
-import { NavLink, Outlet, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { BookOpen, Cpu, LayoutDashboard, LogOut, Settings as SettingsIcon, Thermometer } from "lucide-react";
 import { Dashboard } from "./pages/Dashboard";
 import { Devices } from "./pages/Devices";
-import { Firmware } from "./pages/Firmware";
 import { Guide } from "./pages/Guide";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
@@ -11,11 +10,15 @@ import { WsProvider } from "./ws/WsProvider";
 import { clearToken, getToken } from "./api/client";
 import { ThemeToggle } from "./theme/ThemeToggle";
 
+// Firmware lives inside Settings (see pages/Settings.tsx) rather than as its
+// own top-level destination — it's a device-management detail, not
+// something reached often enough to earn permanent nav real estate. Guide
+// is reference material, not a place you navigate "into" repeatedly like
+// the other three, so it sits as an icon button next to the theme toggle
+// instead of taking a nav slot.
 const NAV_ITEMS = [
   { to: "/", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/devices", end: false, label: "Devices", icon: Cpu },
-  { to: "/firmware", end: false, label: "Firmware", icon: Thermometer },
-  { to: "/guide", end: false, label: "Guide", icon: BookOpen },
   { to: "/settings", end: false, label: "Settings", icon: SettingsIcon },
 ] as const;
 
@@ -34,6 +37,9 @@ function tabLinkClass({ isActive }: { isActive: boolean }): string {
 }
 
 function Shell(): JSX.Element {
+  const { pathname } = useLocation();
+  const guideActive = pathname === "/guide";
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
       <header className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-lg sticky top-0 z-40 px-4 sm:px-6 py-3 sm:py-3.5">
@@ -58,6 +64,18 @@ function Shell(): JSX.Element {
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to="/guide"
+            aria-label="Guide"
+            title="Guide"
+            className={`rounded-xl p-1.5 ${
+              guideActive
+                ? "bg-neutral-200 dark:bg-neutral-800 text-amber-600 dark:text-amber-400"
+                : "text-neutral-600 dark:text-neutral-500 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+            }`}
+          >
+            <BookOpen className="h-4 w-4" strokeWidth={2} />
+          </Link>
           <ThemeToggle />
           {getToken() && (
             <button
@@ -78,7 +96,7 @@ function Shell(): JSX.Element {
         <Outlet />
       </main>
       <nav
-        className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg"
+        className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {NAV_ITEMS.map(({ to, end, label, icon: Icon }) => (
@@ -115,7 +133,6 @@ export function App(): JSX.Element {
       <Route element={<AuthenticatedLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/devices" element={<Devices />} />
-        <Route path="/firmware" element={<Firmware />} />
         <Route path="/guide" element={<Guide />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

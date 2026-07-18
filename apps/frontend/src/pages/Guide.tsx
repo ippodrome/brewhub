@@ -217,7 +217,7 @@ export function Guide(): JSX.Element {
         <section id="firmware" className="space-y-3">
           <h2 className={h2}>Firmware & updates</h2>
           <p className={p}>
-            The <strong>Firmware</strong> page covers both getting BrewHub onto a brand new board and updating one
+            <strong>Settings → Firmware</strong> covers both getting BrewHub onto a brand new board and updating one
             that's already running.
           </p>
           <div className={card}>
@@ -277,7 +277,7 @@ export function Guide(): JSX.Element {
             </p>
           </div>
           <div className={card}>
-            <p className={label}>The Firmware page says WebSerial isn't available</p>
+            <p className={label}>Settings → Firmware says WebSerial isn't available</p>
             <p className={p}>
               You're on Safari or Firefox, or on plain HTTP instead of HTTPS — WebSerial needs both Chrome/Edge and a
               secure context. Switch browsers, or use OTA instead if the device is already paired.
