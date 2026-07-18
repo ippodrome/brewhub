@@ -31,6 +31,10 @@ export function insertReading(db: Database.Database, payload: TelemetryPayload):
   insertAll(payload.sensors);
 }
 
+// Ordered by recorded_at (server wall-clock, set automatically on insert),
+// not ts (the device's own millis()-since-boot value, which resets to
+// near-zero on every reboot and is therefore useless for absolute ordering
+// across reboots — see DECISIONS.md).
 export function getLatestReadingForSensor(
   db: Database.Database,
   deviceId: string,
@@ -39,7 +43,7 @@ export function getLatestReadingForSensor(
   return (
     db
       .prepare<[string, string], ReadingRow>(
-        "SELECT * FROM readings WHERE device_id = ? AND sensor_address = ? ORDER BY ts DESC LIMIT 1",
+        "SELECT * FROM readings WHERE device_id = ? AND sensor_address = ? ORDER BY recorded_at DESC, id DESC LIMIT 1",
       )
       .get(deviceId, sensorAddress) ?? null
   );
@@ -53,7 +57,7 @@ export function getRecentReadingsForSensor(
 ): ReadingRow[] {
   return db
     .prepare<[string, string, number], ReadingRow>(
-      "SELECT * FROM readings WHERE device_id = ? AND sensor_address = ? ORDER BY ts DESC LIMIT ?",
+      "SELECT * FROM readings WHERE device_id = ? AND sensor_address = ? ORDER BY recorded_at DESC, id DESC LIMIT ?",
     )
     .all(deviceId, sensorAddress, limit);
 }

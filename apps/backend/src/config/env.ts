@@ -20,6 +20,12 @@ const EnvSchema = z.object({
   PRESENCE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   PRESENCE_STALE_AFTER_MS: z.coerce.number().int().positive().default(60000),
   PROFILE_SCHEDULER_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
+  // Collapses telemetry older than TELEMETRY_RETENTION_DAYS into hourly
+  // averages so the readings/flow_readings/weight_readings/gravity_readings
+  // tables stay bounded indefinitely (see DECISIONS.md). Once a day is
+  // plenty — this isn't time-sensitive the way presence/profile polling is.
+  TELEMETRY_ROLLUP_INTERVAL_MS: z.coerce.number().int().positive().default(86400000),
+  TELEMETRY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

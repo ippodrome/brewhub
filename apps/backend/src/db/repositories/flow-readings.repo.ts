@@ -21,6 +21,9 @@ export function insertFlowReading(
   ).run(deviceId, flowIndex, ts, pulseCount);
 }
 
+// Ordered by recorded_at, not ts — see readings.repo.ts's doc comment on
+// getLatestReadingForSensor for why the device's own ts isn't reliable for
+// absolute ordering.
 export function getRecentFlowReadings(
   db: Database.Database,
   deviceId: string,
@@ -29,7 +32,7 @@ export function getRecentFlowReadings(
 ): FlowReadingRow[] {
   return db
     .prepare<[string, number, number], FlowReadingRow>(
-      "SELECT * FROM flow_readings WHERE device_id = ? AND flow_index = ? ORDER BY ts DESC LIMIT ?",
+      "SELECT * FROM flow_readings WHERE device_id = ? AND flow_index = ? ORDER BY recorded_at DESC, id DESC LIMIT ?",
     )
     .all(deviceId, flowIndex, limit);
 }

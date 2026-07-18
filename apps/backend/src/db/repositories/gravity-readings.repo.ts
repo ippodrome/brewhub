@@ -24,6 +24,12 @@ export function insertGravityReading(
   ).run(hydrometerId, ts, specificGravity, temperatureC, batteryPercent);
 }
 
+// Ordered by recorded_at, not ts — this matters more here than anywhere
+// else: getLatestGravityReading feeds the gravity-profile scheduler's
+// setpoint resolution directly (scheduler.ts), so returning a stale,
+// pre-reboot reading because the device's own ts reset on reboot would
+// mean silently controlling temperature off old data. See
+// readings.repo.ts's doc comment on getLatestReadingForSensor.
 export function getRecentGravityReadings(
   db: Database.Database,
   hydrometerId: number,
@@ -31,7 +37,7 @@ export function getRecentGravityReadings(
 ): GravityReadingRow[] {
   return db
     .prepare<[number, number], GravityReadingRow>(
-      "SELECT * FROM gravity_readings WHERE hydrometer_id = ? ORDER BY ts DESC LIMIT ?",
+      "SELECT * FROM gravity_readings WHERE hydrometer_id = ? ORDER BY recorded_at DESC, id DESC LIMIT ?",
     )
     .all(hydrometerId, limit);
 }
@@ -39,7 +45,7 @@ export function getRecentGravityReadings(
 export function getLatestGravityReading(db: Database.Database, hydrometerId: number): GravityReadingRow | null {
   const row = db
     .prepare<[number], GravityReadingRow>(
-      "SELECT * FROM gravity_readings WHERE hydrometer_id = ? ORDER BY ts DESC LIMIT 1",
+      "SELECT * FROM gravity_readings WHERE hydrometer_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 1",
     )
     .get(hydrometerId);
   return row ?? null;

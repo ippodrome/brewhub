@@ -30,8 +30,11 @@ export async function historyRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const rows = getRecentReadingsForSensor(fastify.db, id, sensorAddress, parseLimit(limit));
+      // recorded_at (server wall-clock, seconds) * 1000, not the device's own
+      // ts (millis()-since-boot — meaningless as an absolute timestamp, see
+      // DECISIONS.md).
       const points: TemperatureHistoryPoint[] = rows
-        .map((r) => ({ ts: r.ts, temperatureC: r.temperature_c }))
+        .map((r) => ({ ts: r.recorded_at * 1000, temperatureC: r.temperature_c }))
         .reverse(); // repo returns newest-first; charts want chronological order
       return points;
     },
@@ -49,7 +52,9 @@ export async function historyRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const rows = getRecentFlowReadings(fastify.db, id, Number(flowIndex), parseLimit(limit));
-    const points: FlowHistoryPoint[] = rows.map((r) => ({ ts: r.ts, pulseCount: r.pulse_count })).reverse();
+    const points: FlowHistoryPoint[] = rows
+      .map((r) => ({ ts: r.recorded_at * 1000, pulseCount: r.pulse_count }))
+      .reverse();
     return points;
   });
 
@@ -65,7 +70,7 @@ export async function historyRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const rows = getRecentWeightReadings(fastify.db, id, Number(weightIndex), parseLimit(limit));
-    const points: WeightHistoryPoint[] = rows.map((r) => ({ ts: r.ts, grams: r.grams })).reverse();
+    const points: WeightHistoryPoint[] = rows.map((r) => ({ ts: r.recorded_at * 1000, grams: r.grams })).reverse();
     return points;
   });
 }

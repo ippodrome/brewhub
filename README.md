@@ -70,6 +70,8 @@ docker cp docker-backend-1:/data/brewhub.db.bak ./brewhub-backup-$(date +%Y%m%d)
 
 To restore this way: stop the stack, replace the volume's `brewhub.db` (and delete any `-wal`/`-shm` sidecar files) with the backup, then `docker compose up -d`.
 
+**Telemetry retention**: temperature/flow/weight/gravity history older than 30 days (`TELEMETRY_RETENTION_DAYS`) is automatically collapsed into hourly averages once a day (`TELEMETRY_ROLLUP_INTERVAL_MS`), so the database stays bounded indefinitely regardless of how long the stack has been running — see DECISIONS.md ADR-015. No action needed; both env vars have sensible defaults and only need setting if you want a different window.
+
 ## Adding a device
 
 The firmware's compile-time `DEVICE_ID` and the id you use when adding the device via the UI must match **exactly**, or the device's telemetry/status messages will be silently dropped (the backend only accepts messages from devices it already knows about). Once a device has been flashed and connects to the broker at least once, it announces itself over MQTT — the "Add device" dialog shows it as a one-click pick (prefills id/type) instead of you needing to type the id manually. It only needs to have connected once, not currently be online.

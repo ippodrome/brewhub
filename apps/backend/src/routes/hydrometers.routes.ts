@@ -87,7 +87,9 @@ export async function hydrometersRoutes(fastify: FastifyInstance): Promise<void>
     }
 
     const rows = getRecentGravityReadings(fastify.db, numericId, parseLimit(limit));
-    const points: GravityHistoryPoint[] = rows.map((r) => ({ ts: r.ts, gravitySg: r.specific_gravity })).reverse();
+    const points: GravityHistoryPoint[] = rows
+      .map((r) => ({ ts: r.recorded_at * 1000, gravitySg: r.specific_gravity }))
+      .reverse();
     return points;
   });
 }

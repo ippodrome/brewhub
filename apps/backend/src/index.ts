@@ -7,6 +7,7 @@ import { buildApp } from "./app.js";
 import { createMqttClient } from "./mqtt/client.js";
 import { startPresenceSweep } from "./mqtt/presence.js";
 import { startProfileScheduler } from "./profiles/scheduler.js";
+import { startTelemetryRollup } from "./telemetry/rollup.js";
 import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
 import { insertFlowReading } from "./db/repositories/flow-readings.repo.js";
@@ -69,7 +70,11 @@ async function main(): Promise<void> {
         app.log.warn({ deviceId: payload.deviceId }, "Status for unknown device, dropping");
         return;
       }
-      setDeviceOnline(db, payload.deviceId, payload.online, payload.ts);
+      // Date.now() (server wall-clock), not payload.ts — the device's ts is
+      // millis()-since-boot, not an absolute timestamp (no NTP sync in the
+      // firmware), so it resets on every reboot and can't be trusted as a
+      // "last seen at" moment. See DECISIONS.md.
+      setDeviceOnline(db, payload.deviceId, payload.online, Date.now());
       setDeviceFirmwareVersion(db, payload.deviceId, payload.firmwareVersion);
       broadcastToAll({ type: "status", payload });
     },
@@ -81,10 +86,10 @@ async function main(): Promise<void> {
       }
       insertReading(db, payload);
       // Telemetry is itself evidence of life, independent of the periodic status heartbeat.
-      setDeviceOnline(db, payload.deviceId, true, payload.ts);
+      setDeviceOnline(db, payload.deviceId, true, Date.now());
 
       for (const sensor of payload.sensors) {
-        const isNewSensor = recordSensorSeen(db, payload.deviceId, sensor.address, payload.ts);
+        const isNewSensor = recordSensorSeen(db, payload.deviceId, sensor.address, Date.now());
         if (isNewSensor) {
           publishTemperatureSensorDiscovery(mqttClient, device, sensor.address, null);
         }
@@ -193,6 +198,13 @@ async function main(): Promise<void> {
     mqttClient,
     logger: app.log,
     intervalMs: config.PROFILE_SCHEDULER_INTERVAL_MS,
+  });
+
+  startTelemetryRollup({
+    db,
+    logger: app.log,
+    retentionDays: config.TELEMETRY_RETENTION_DAYS,
+    intervalMs: config.TELEMETRY_ROLLUP_INTERVAL_MS,
   });
 
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
