@@ -71,7 +71,7 @@ function FlowCharts({ device }: { device: Device }): JSX.Element | null {
 
 export function DeviceHistoryPanel({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">History</h3>
         <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">

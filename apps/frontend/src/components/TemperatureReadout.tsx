@@ -43,10 +43,10 @@ export function TemperatureReadout({
   const others = sensors.filter((s) => s !== headline);
 
   return (
-    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
       <div className="flex items-center gap-2">
         <span
-          className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-emerald-400" : "bg-neutral-400 dark:bg-neutral-600"}`}
+          className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-neutral-400 dark:bg-neutral-600"}`}
         />
         <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{device.name}</span>
         {device.chamberName && <span className="text-xs text-neutral-600 dark:text-neutral-500">· {device.chamberName}</span>}
@@ -55,10 +55,10 @@ export function TemperatureReadout({
       <div className="mt-4 flex items-baseline gap-1">
         {headline && headline.temperatureC !== null ? (
           <>
-            <span className="text-5xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
+            <span className="font-display text-5xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
               {headline.temperatureC.toFixed(1)}
             </span>
-            <span className="text-xl text-neutral-600 dark:text-neutral-500">°C</span>
+            <span className="text-xl text-amber-600 dark:text-amber-400">°C</span>
           </>
         ) : (
           <span className="text-3xl font-medium text-neutral-400 dark:text-neutral-600">No reading</span>

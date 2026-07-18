@@ -15,7 +15,7 @@ import {
 } from "../notifications/pushSubscribe";
 
 const inputClass =
-  "w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
 const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
 
 function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX.Element {
@@ -65,7 +65,7 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
         <button
           onClick={() => unsubscribeMutation.mutate()}
           disabled={unsubscribeMutation.isPending}
-          className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+          className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
         >
           {unsubscribeMutation.isPending ? "Unsubscribing..." : "Unsubscribe this browser"}
         </button>
@@ -73,7 +73,7 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
         <button
           onClick={() => subscribeMutation.mutate()}
           disabled={subscribeMutation.isPending || !vapidPublicKey}
-          className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
+          className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
         >
           {subscribeMutation.isPending ? "Subscribing..." : "Enable push notifications"}
         </button>
@@ -125,12 +125,12 @@ export function NotificationSettings(): JSX.Element {
         channels you enable below.
       </p>
 
-      <div className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+      <div className="space-y-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Browser push</p>
         <PushSection vapidPublicKey={settingsQuery.data.vapidPublicKey} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Telegram</p>
         <p className="text-xs text-neutral-600 dark:text-neutral-500">
           Message <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="underline">@BotFather</a> on
@@ -180,14 +180,14 @@ export function NotificationSettings(): JSX.Element {
               type="button"
               onClick={() => testMutation.mutate()}
               disabled={testMutation.isPending}
-              className="rounded-lg px-3 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+              className="rounded-xl px-3 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
             >
               {testMutation.isPending ? "Sending..." : "Send test notification"}
             </button>
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
+              className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
             >
               {saveMutation.isPending ? "Saving..." : "Save"}
             </button>

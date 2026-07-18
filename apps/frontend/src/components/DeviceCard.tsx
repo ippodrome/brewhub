@@ -26,7 +26,7 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
       <button
         onClick={() => tareMutation.mutate()}
         disabled={tareMutation.isPending}
-        className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+        className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
         title="Zero the scale at its current load — only do this with the platform in its true reference state (see firmware README)"
       >
         {tareMutation.isPending ? "Taring..." : "Tare"}
@@ -51,7 +51,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
   });
 
   return (
-    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -70,7 +70,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setConfigOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Configure
             </button>
@@ -78,7 +78,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setSensorsOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Sensors
             </button>
@@ -86,7 +86,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "fermenter" && (
             <button
               onClick={() => setProfilesOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Profiles
             </button>
@@ -94,7 +94,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "kegerator" && (
             <button
               onClick={() => setTapsOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Taps
             </button>
@@ -102,7 +102,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "fermenter" && (
             <button
               onClick={() => setHydrometerOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Hydrometer
             </button>
@@ -110,7 +110,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "sensor" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setHistoryOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               History
             </button>
@@ -119,7 +119,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
             <button
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
-              className="rounded-lg bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-500/20"
+              className="rounded-xl bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-500/20"
             >
               Confirm delete
             </button>
@@ -127,7 +127,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
             <button
               onClick={() => setConfirmingDelete(true)}
               onBlur={() => setConfirmingDelete(false)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
             >
               Remove
             </button>

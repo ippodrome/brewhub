@@ -39,7 +39,7 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   });
 
   return (
-    <li className="space-y-2 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
+    <li className="space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-neutral-800 dark:text-neutral-200">
@@ -62,7 +62,7 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
           {tap.measurementType === "flow" && (
             <button
               onClick={() => setPoursOpen((v) => !v)}
-              className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
             >
               Pours
             </button>
@@ -70,14 +70,14 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+            className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
             New keg
           </button>
           <button
             onClick={() => deleteMutation.mutate()}
             disabled={deleteMutation.isPending}
-            className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+            className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
           >
             Remove
           </button>
@@ -112,7 +112,7 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
 const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
 
 export function TapManager({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
@@ -188,7 +188,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Taps</h3>
         <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
@@ -377,7 +377,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
+            className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
           >
             {createMutation.isPending ? "Adding..." : "Add tap"}
           </button>

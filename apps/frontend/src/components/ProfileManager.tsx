@@ -99,7 +99,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Profiles</h3>
         <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
@@ -116,7 +116,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           {profilesQuery.data.map((profile) => (
             <li
               key={profile.id}
-              className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
             >
               <div>
                 <p className="text-sm text-neutral-800 dark:text-neutral-200">{profile.name}</p>
@@ -128,14 +128,14 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                 <button
                   onClick={() => activateMutation.mutate(profile.id)}
                   disabled={activateMutation.isPending}
-                  className="rounded-lg px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                  className="rounded-xl px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                 >
                   Activate
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(profile.id)}
                   disabled={deleteMutation.isPending}
-                  className="rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+                  className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
                 >
                   Delete
                 </button>
@@ -156,7 +156,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
       <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
         <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">New profile</p>
         <input
-          className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+          className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
           placeholder="Ale ferment"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -167,7 +167,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="button"
             onClick={() => setTriggerType("time")}
-            className={`rounded-lg px-2.5 py-1 ${triggerType === "time" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+            className={`rounded-xl px-2.5 py-1 ${triggerType === "time" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
           >
             Time-based
           </button>
@@ -176,7 +176,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
             onClick={() => hasHydrometer && setTriggerType("gravity")}
             disabled={!hasHydrometer}
             title={hasHydrometer ? undefined : "Assign a hydrometer to this device first (see the Hydrometer tab)"}
-            className={`rounded-lg px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+            className={`rounded-xl px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
           >
             Gravity-based
           </button>
@@ -196,7 +196,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                       <input
                         type="number"
                         min={0}
-                        className="w-14 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-14 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                         value={days}
                         onChange={(e) => setPart({ days: Math.max(0, Number(e.target.value)) })}
                         title="Days from profile start"
@@ -208,7 +208,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                         type="number"
                         min={0}
                         max={23}
-                        className="w-12 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-12 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                         value={hours}
                         onChange={(e) => setPart({ hours: Math.max(0, Number(e.target.value)) })}
                         title="Hours"
@@ -220,7 +220,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                         type="number"
                         min={0}
                         max={59}
-                        className="w-12 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-12 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                         value={minutes}
                         onChange={(e) => setPart({ minutes: Math.max(0, Number(e.target.value)) })}
                         title="Minutes"
@@ -230,7 +230,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                     <input
                       type="number"
                       step="0.1"
-                      className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                      className="w-20 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                       value={step.targetC}
                       onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
                     />
@@ -252,7 +252,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   <input
                     type="number"
                     step="0.001"
-                    className="w-24 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    className="w-24 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                     value={step.atGravitySg}
                     onChange={(e) => updateGravityStep(i, { atGravitySg: Number(e.target.value) })}
                     title="Specific gravity threshold"
@@ -261,7 +261,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   <input
                     type="number"
                     step="0.1"
-                    className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    className="w-20 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
                     value={step.targetC}
                     onChange={(e) => updateGravityStep(i, { targetC: Number(e.target.value) })}
                   />
@@ -291,7 +291,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-lg bg-neutral-900 dark:bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-100 dark:text-neutral-900 disabled:opacity-50"
+            className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
           >
             {createMutation.isPending ? "Creating..." : "Create profile"}
           </button>
