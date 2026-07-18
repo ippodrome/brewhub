@@ -95,7 +95,7 @@ function FirmwareRow({ build, registeredDeviceIds }: { build: FirmwareBuild; reg
 
   return (
     <li className="space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-neutral-800 dark:text-neutral-200">
             {build.deviceId} <span className="text-neutral-600 dark:text-neutral-500">· v{build.version}</span>
@@ -104,7 +104,7 @@ function FirmwareRow({ build, registeredDeviceIds }: { build: FirmwareBuild; reg
             {build.board} · {Math.round(build.sizeBytes / 1024)} KB · {new Date(build.uploadedAt * 1000).toLocaleString()}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => otaMutation.mutate()}
             disabled={!isRegistered || otaMutation.isPending}

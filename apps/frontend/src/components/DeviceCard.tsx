@@ -111,7 +111,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
 
   return (
     <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span
@@ -125,7 +125,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
             {device.chamberName && <> · {device.chamberName}</>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setConfigOpen((v) => !v)}
