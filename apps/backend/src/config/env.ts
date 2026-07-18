@@ -8,6 +8,11 @@ const EnvSchema = z.object({
   MQTT_USERNAME: z.string().optional(),
   MQTT_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters"),
+  // A token that never expires is valid forever if it ever leaks. 30 days
+  // balances that against not being annoying to re-log-in to for a home
+  // app with no refresh-token flow — accepts @fastify/jwt's own duration
+  // string format (e.g. "30d", "12h").
+  JWT_EXPIRES_IN: z.string().min(1).default("30d"),
   // Only needed to trigger OTA updates — the backend otherwise has no way to
   // know its own LAN-reachable address (it only knows it's listening on
   // 0.0.0.0:3000 internally; Caddy is what's actually exposed). e.g.
