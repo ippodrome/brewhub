@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  monorepo:
+    name: Typecheck, build, test (backend/frontend/shared-types)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Order matters: shared-types is a compiled package, not zero-build
+      # (see README) — backend/frontend need its dist/*.d.ts to exist to
+      # typecheck or even resolve the import at test time. `pnpm -r`
+      # respects the workspace dependency graph, so a single `pnpm -r build`
+      # builds shared-types first automatically; running typecheck/test
+      # before build would fail on a clean checkout with no prior dist/.
+      - run: pnpm -r build
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+
+  firmware:
+    name: Firmware compile (${{ matrix.board.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - { dir: fermenter, env: fermenter-brewpi }
+          - { dir: kegerator, env: kegerator-kegcop }
+          - { dir: keg-scale, env: keg-scale }
+          - { dir: gravity-bridge, env: gravity-bridge }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles(format('firmware/{0}/platformio.ini', matrix.board.dir)) }}
+
+      - run: pip install -U platformio
+
+      # secrets.h is gitignored on purpose (real WiFi/MQTT credentials never
+      # get committed) — a copy of the checked-in .example is enough to
+      # compile-check the firmware, no real device pairing happens in CI.
+      - name: Provide placeholder secrets.h
+        run: cp firmware/${{ matrix.board.dir }}/include/secrets.h.example firmware/${{ matrix.board.dir }}/include/secrets.h
+
+      - name: pio run -e ${{ matrix.board.env }}
+        working-directory: firmware/${{ matrix.board.dir }}
+        run: pio run -e ${{ matrix.board.env }}
+
+  firmware-native-tests:
+    name: Control-loop tests (native, no hardware)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ runner.os }}-${{ hashFiles('firmware/fermenter/platformio.ini') }}
+
+      - run: pip install -U platformio
+
+      - name: pio test -e native
+        working-directory: firmware/fermenter
+        run: pio test -e native
