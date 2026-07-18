@@ -10,7 +10,13 @@ namespace unibrew {
 // calibrationFactor converts the HX711's raw ADC units into grams
 // (scale.set_scale()) — determined once per physical load cell by
 // comparing readings against a known reference weight (see keg-scale
-// README), not something the backend ever sends.
+// README). begin()'s parameter is only the first-ever-boot fallback: once
+// setCalibrationFactor() has been called (from a backend-pushed config —
+// see DeviceConfigSchema.loadCellCalibrationFactor and DECISIONS.md), the
+// persisted value takes over and the begin() parameter is ignored on every
+// subsequent boot, the same way pins.h's own comment already warns its
+// compiled-in constant is "almost certainly wrong" for any given physical
+// load cell without a real calibration.
 //
 // The HX711 library's zero-offset (set by tare()) only lives in RAM, so a
 // naive implementation would forget it on every ESP32 reboot — silently
@@ -22,7 +28,7 @@ namespace unibrew {
 // physically empty again after a reboot.
 class LoadCellManager {
 public:
-    void begin(uint8_t doutPin, uint8_t sckPin, float calibrationFactor);
+    void begin(uint8_t doutPin, uint8_t sckPin, float defaultCalibrationFactor);
 
     // Physically zeroes the scale at its current load and persists the new
     // offset to NVS. Blocking (HX711 library requirement, bounded by an
@@ -32,6 +38,12 @@ public:
     // already on the platform would corrupt every weight-based tap reading
     // from that channel until re-tared correctly.
     void tare();
+
+    // Applies a new raw-ADC-to-grams calibration factor and persists it to
+    // NVS so it survives a reboot without needing a reflash. Cheap and
+    // idempotent (unlike tare()) — safe to call every time a config message
+    // carrying this field arrives, including MQTT redeliveries.
+    void setCalibrationFactor(float calibrationFactor);
 
     // NAN if the HX711 doesn't report ready within a bounded timeout —
     // mirrors SensorManager's "null/NaN on fault" convention (see
@@ -45,6 +57,7 @@ private:
 
     static constexpr const char* kNamespace = "unibrew-scale";
     static constexpr const char* kOffsetKey = "offset";
+    static constexpr const char* kCalibrationFactorKey = "calFactor";
     static constexpr uint32_t kReadyTimeoutMs = 500;
     static constexpr uint32_t kTareTimeoutMs = 5000;
     static constexpr uint8_t kSamplesPerReading = 5;

@@ -47,12 +47,29 @@ constexpr int64_t kNoTareApplied = INT64_MIN;
 
 int64_t lastAppliedTareRequestId = kNoTareApplied;
 
+// Unlike tareRequestId, applying the same calibration factor twice is
+// harmless — set_scale() is a pure assignment, not a stateful action against
+// whatever happens to be sitting on the platform right now. This is only
+// tracked to skip redundant NVS writes on every MQTT redelivery/reconnect,
+// not for correctness.
+constexpr float kNoCalibrationApplied = NAN;
+float lastAppliedCalibrationFactor = kNoCalibrationApplied;
+
 void onConfigMessage(const uint8_t* payload, unsigned int length) {
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, payload, length);
     if (err) {
         Serial.printf("[config] invalid JSON: %s\n", err.c_str());
         return;
+    }
+
+    if (doc["loadCellCalibrationFactor"].is<float>()) {
+        float factor = doc["loadCellCalibrationFactor"];
+        if (isnan(lastAppliedCalibrationFactor) || factor != lastAppliedCalibrationFactor) {
+            Serial.printf("[config] new loadCellCalibrationFactor %.3f\n", factor);
+            loadCell.setCalibrationFactor(factor);
+            lastAppliedCalibrationFactor = factor;
+        }
     }
 
     if (!doc["tareRequestId"].is<int64_t>()) {

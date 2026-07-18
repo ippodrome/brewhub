@@ -41,6 +41,14 @@ export const DeviceConfigSchema = z.object({
   // pattern as the rest of this schema (ADR-004), so a tare request survives
   // MQTT drops the same way a setpoint change does.
   tareRequestId: z.number().int().nullable().optional(),
+  // keg_scale devices only: HX711 raw-ADC-to-grams calibration factor
+  // (equivalent to the HX711 library's scale.set_scale()) — determined by
+  // comparing readings against a known reference weight (see keg-scale
+  // README). Same declarative pattern as everything else here: the firmware
+  // persists whatever value it last applied to NVS, so it survives reboots
+  // and MQTT drops, and only falls back to its compiled-in default on a
+  // truly first-ever boot. Inert for every other device type.
+  loadCellCalibrationFactor: z.number().nullable().optional(),
 });
 export type DeviceConfig = z.infer<typeof DeviceConfigSchema>;
 
@@ -65,4 +73,5 @@ export const DEFAULT_DEVICE_CONFIG: DeviceConfig = {
   controlSensorAddress: null,
   overrideExpiresAt: null,
   tareRequestId: null,
+  loadCellCalibrationFactor: null,
 };

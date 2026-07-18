@@ -14,12 +14,14 @@ There's no `env:native` here — unlike `fermenter`/`kegerator`, this device has
 
 ## Calibration
 
-`LOADCELL_CALIBRATION_FACTOR` in `include/pins.h` converts the HX711's raw ADC units into grams, and is specific to your exact load cell — the shipped value is a placeholder from the reference design this firmware is based on and is almost certainly wrong for yours. There's no dedicated calibration sketch/mode yet (a possible future improvement); calibrate by iterating on the real firmware:
+`LOADCELL_CALIBRATION_FACTOR` in `include/pins.h` converts the HX711's raw ADC units into grams, and is specific to your exact load cell — the shipped value is a placeholder from the reference design this firmware is based on and is almost certainly wrong for yours. It's only the **first-boot fallback** now, though: once a real factor has been set from the UI (see below), the device persists it to NVS and uses that instead on every subsequent boot, ignoring this constant — no reflash needed to calibrate or recalibrate.
 
-1. Flash with the placeholder factor, platform empty, `pio device monitor` open.
+Calibrate from the BrewHub UI — no reflashing required:
+
+1. Flash once with the placeholder factor, platform empty.
 2. Place a known reference weight on the platform (e.g. a 5.000 kg weight, or anything you can weigh accurately elsewhere first).
-3. Read the reported grams from the serial log or the device's live telemetry (BrewHub UI → device card → weight readout).
-4. New factor = current `LOADCELL_CALIBRATION_FACTOR` × (reported grams ÷ actual known grams).
-5. Update `pins.h` with the new factor, reflash, repeat from step 2 until the reported weight matches the known weight closely.
+3. Read the reported grams from the device's live telemetry (BrewHub UI → device card → weight readout).
+4. New factor = current factor (the compiled-in placeholder, the first time) × (reported grams ÷ actual known grams).
+5. Enter the new factor in the device card's "Calibrate" field and apply — it's pushed over MQTT as declarative config (the same pattern as setpoint/hysteresis, see DECISIONS.md ADR-004/ADR-019), applied immediately, and persisted on-device. Repeat from step 2 until the reported weight matches the known weight closely — each iteration is just a UI edit, not a rebuild/reflash.
 
 Once calibrated, use the device card's "Tare" button to zero the scale — **only** with the platform in its true empty reference state (no keg on it). Taring with a keg already on the platform will make every weight-based tap's remaining-volume calculation wrong until re-tared correctly, since tap calibration (`tareWeightG`/`fullWeightG`, set per tap in the Taps UI) assumes the scale reports the keg's actual absolute weight, not a weight relative to some other zero point.

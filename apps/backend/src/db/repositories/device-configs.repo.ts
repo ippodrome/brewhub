@@ -17,6 +17,7 @@ interface DeviceConfigRow {
   profile_started_at: number | null;
   override_expires_at: number | null;
   tare_request_id: number | null;
+  load_cell_calibration_factor: number | null;
   updated_at: number;
 }
 
@@ -32,6 +33,7 @@ function toDeviceConfig(row: DeviceConfigRow): DeviceConfig {
     controlSensorAddress: row.control_sensor_address,
     overrideExpiresAt: row.override_expires_at,
     tareRequestId: row.tare_request_id,
+    loadCellCalibrationFactor: row.load_cell_calibration_factor,
   };
 }
 
@@ -87,10 +89,10 @@ export function updateDeviceConfig(
     `INSERT INTO device_configs
        (device_id, setpoint_c, hysteresis_c, mode, min_on_time_ms, min_off_time_ms,
         pid_kp, pid_ki, pid_kd, pid_window_ms, control_sensor_address, override_expires_at,
-        tare_request_id, updated_at)
+        tare_request_id, load_cell_calibration_factor, updated_at)
      VALUES (@deviceId, @setpointC, @hysteresisC, @mode, @minOnTimeMs, @minOffTimeMs,
              @pidKp, @pidKi, @pidKd, @pidWindowMs, @controlSensorAddress, @overrideExpiresAt,
-             @tareRequestId, unixepoch())
+             @tareRequestId, @loadCellCalibrationFactor, unixepoch())
      ON CONFLICT(device_id) DO UPDATE SET
        setpoint_c = excluded.setpoint_c,
        hysteresis_c = excluded.hysteresis_c,
@@ -104,6 +106,7 @@ export function updateDeviceConfig(
        control_sensor_address = excluded.control_sensor_address,
        override_expires_at = excluded.override_expires_at,
        tare_request_id = excluded.tare_request_id,
+       load_cell_calibration_factor = excluded.load_cell_calibration_factor,
        updated_at = unixepoch()`,
   ).run({
     deviceId,
@@ -119,6 +122,7 @@ export function updateDeviceConfig(
     controlSensorAddress: next.controlSensorAddress ?? null,
     overrideExpiresAt: next.overrideExpiresAt ?? null,
     tareRequestId: next.tareRequestId ?? null,
+    loadCellCalibrationFactor: next.loadCellCalibrationFactor ?? null,
   });
 
   return next;

@@ -3,11 +3,23 @@
 
 namespace unibrew {
 
-void LoadCellManager::begin(uint8_t doutPin, uint8_t sckPin, float calibrationFactor) {
+void LoadCellManager::begin(uint8_t doutPin, uint8_t sckPin, float defaultCalibrationFactor) {
     scale_.begin(doutPin, sckPin);
-    scale_.set_scale(calibrationFactor);
 
     prefs_.begin(kNamespace, false);
+
+    if (prefs_.isKey(kCalibrationFactorKey)) {
+        float factor = prefs_.getFloat(kCalibrationFactorKey, defaultCalibrationFactor);
+        scale_.set_scale(factor);
+        Serial.printf("[loadcell] restored calibration factor %.3f from NVS\n", factor);
+    } else {
+        scale_.set_scale(defaultCalibrationFactor);
+        Serial.printf(
+            "[loadcell] no persisted calibration factor yet — using compiled-in default %.3f "
+            "until one is pushed via device config\n",
+            defaultCalibrationFactor);
+    }
+
     if (prefs_.isKey(kOffsetKey)) {
         long offset = prefs_.getLong(kOffsetKey, 0);
         scale_.set_offset(offset);
@@ -19,6 +31,12 @@ void LoadCellManager::begin(uint8_t doutPin, uint8_t sckPin, float calibrationFa
     }
 
     begun_ = true;
+}
+
+void LoadCellManager::setCalibrationFactor(float calibrationFactor) {
+    scale_.set_scale(calibrationFactor);
+    prefs_.putFloat(kCalibrationFactorKey, calibrationFactor);
+    Serial.printf("[loadcell] calibration factor set to %.3f, persisted to NVS\n", calibrationFactor);
 }
 
 void LoadCellManager::tare() {
