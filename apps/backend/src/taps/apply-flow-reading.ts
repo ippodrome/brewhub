@@ -1,24 +1,37 @@
 import type Database from "better-sqlite3";
 import type { FlowReading } from "@brewhub/shared-types";
-import { applyFlowReadingUpdate, getTapByFlowIndex } from "../db/repositories/taps.repo.js";
+import { applyFlowReadingUpdate, getTapByFlowIndex, markKicked } from "../db/repositories/taps.repo.js";
 import { extendPourEvent, startPourEvent } from "../db/repositories/pour-events.repo.js";
 import { processFlowReading } from "./process-flow-reading.js";
 import { checkLowVolumeCrossing, type LowVolumeEvent } from "./low-volume-event.js";
+import { checkKick, type KickEvent } from "./kick-event.js";
 
 const POUR_IDLE_TIMEOUT_MS = 5000;
 
-/** Drives processFlowReading's decision into actual DB writes. No-ops (returns null) if the flow index has no configured tap. */
+/**
+ * Anything worth notifying about that came out of one flow reading. Both are
+ * independent and can fire on the same tick — a keg that blows is also, by
+ * then, usually low.
+ */
+export interface FlowEvents {
+  lowVolume: LowVolumeEvent | null;
+  kick: KickEvent | null;
+}
+
+const NO_EVENTS: FlowEvents = { lowVolume: null, kick: null };
+
+/** Drives processFlowReading's decision into actual DB writes. No-ops if the flow index has no configured tap. */
 export function applyFlowReading(
   db: Database.Database,
   deviceId: string,
   flowReading: FlowReading,
   nowMs: number,
-): LowVolumeEvent | null {
+): FlowEvents {
   const tap = getTapByFlowIndex(db, deviceId, flowReading.index);
   // pulses_per_liter is guaranteed non-null by the taps CHECK constraint for
   // measurement_type='flow' (which getTapByFlowIndex already filters on) —
   // this guard just gives TS the same guarantee the DB already enforces.
-  if (!tap || tap.pulses_per_liter === null) return null;
+  if (!tap || tap.pulses_per_liter === null) return NO_EVENTS;
 
   const action = processFlowReading(
     {
@@ -35,7 +48,7 @@ export function applyFlowReading(
 
   switch (action.type) {
     case "none":
-      return null;
+      return NO_EVENTS;
 
     case "resync":
       applyFlowReadingUpdate(db, tap.id, {
@@ -44,7 +57,7 @@ export function applyFlowReading(
         pourInProgressId: action.finalizePour ? null : tap.pour_in_progress_id,
         lastActivityAt: action.finalizePour ? null : tap.last_activity_at,
       });
-      return null;
+      return NO_EVENTS;
 
     case "start_pour": {
       const pourId = startPourEvent(db, tap.id, action.volumeMl, nowMs);
@@ -54,20 +67,36 @@ export function applyFlowReading(
         pourInProgressId: pourId,
         lastActivityAt: nowMs,
       });
-      return checkLowVolumeCrossing(db, tap, action.remainingVolumeMl);
+      // No kick check: the first tick of a pour has no prior activity to
+      // measure an interval against, so there is no rate to judge yet.
+      return { lowVolume: checkLowVolumeCrossing(db, tap, action.remainingVolumeMl), kick: null };
     }
 
-    case "extend_pour":
+    case "extend_pour": {
       // tap.pour_in_progress_id is guaranteed non-null here: processFlowReading
       // only returns "extend_pour" when it was passed a non-null pourInProgressId.
-      extendPourEvent(db, tap.pour_in_progress_id as number, action.addedVolumeMl, nowMs);
+      const pourVolumeSoFarMl = extendPourEvent(
+        db,
+        tap.pour_in_progress_id as number,
+        action.addedVolumeMl,
+        nowMs,
+      );
       applyFlowReadingUpdate(db, tap.id, {
         remainingVolumeMl: action.remainingVolumeMl,
         lastPulseCount: action.lastPulseCount,
         pourInProgressId: tap.pour_in_progress_id,
         lastActivityAt: nowMs,
       });
-      return checkLowVolumeCrossing(db, tap, action.remainingVolumeMl);
+
+      const kick = checkKick(
+        { ...tap, pourVolumeSoFarMl },
+        action.addedVolumeMl,
+        nowMs - (tap.last_activity_at ?? nowMs),
+      );
+      if (kick) markKicked(db, tap.id, nowMs);
+
+      return { lowVolume: checkLowVolumeCrossing(db, tap, action.remainingVolumeMl), kick };
+    }
 
     case "finalize_pour":
       applyFlowReadingUpdate(db, tap.id, {
@@ -76,6 +105,6 @@ export function applyFlowReading(
         pourInProgressId: null,
         lastActivityAt: null,
       });
-      return null;
+      return NO_EVENTS;
   }
 }

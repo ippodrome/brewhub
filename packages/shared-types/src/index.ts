@@ -3,6 +3,7 @@ export * from "./device-config.js";
 export * from "./device-sensor.js";
 export * from "./discovery.js";
 export * from "./firmware.js";
+export * from "./flow-calibration.js";
 export * from "./gravity.js";
 export * from "./history.js";
 export * from "./hydrometer.js";

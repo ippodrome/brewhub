@@ -4,6 +4,7 @@ import { LOW_VOLUME_THRESHOLD_PERCENT, type Device, type Tap, type TapMeasuremen
 import { createTap, deleteTap, listPours, listTaps, updateTap } from "../api/taps";
 import { listDevices } from "../api/devices";
 import { useLiveTelemetry } from "../ws/useLiveTelemetry";
+import { FlowCalibrationPanel } from "./FlowCalibrationPanel";
 
 function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
   const fraction = tap.fullVolumeMl > 0 ? tap.remainingVolumeMl / tap.fullVolumeMl : 0;
@@ -20,6 +21,7 @@ function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
 
 function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   const [poursOpen, setPoursOpen] = useState(false);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const poursQuery = useQuery({
@@ -60,12 +62,20 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
         </div>
         <div className="flex gap-2">
           {tap.measurementType === "flow" && (
-            <button
-              onClick={() => setPoursOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
-            >
-              Pours
-            </button>
+            <>
+              <button
+                onClick={() => setPoursOpen((v) => !v)}
+                className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                Pours
+              </button>
+              <button
+                onClick={() => setCalibrationOpen((v) => !v)}
+                className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                Calibrate
+              </button>
+            </>
           )}
           <button
             onClick={() => resetMutation.mutate()}
@@ -90,6 +100,17 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
           {Math.round(tap.remainingVolumeMl)} / {Math.round(tap.fullVolumeMl)} mL remaining
         </p>
       </div>
+
+      {tap.kickedAt !== null && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+          Kicked {new Date(tap.kickedAt).toLocaleString()} — gas was running through the line instead of beer.
+          Tap a new keg with <strong>New keg</strong> to clear this.
+        </div>
+      )}
+
+      {calibrationOpen && tap.measurementType === "flow" && (
+        <FlowCalibrationPanel device={device} tap={tap} />
+      )}
 
       {poursOpen && (
         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs text-neutral-600 dark:text-neutral-500">

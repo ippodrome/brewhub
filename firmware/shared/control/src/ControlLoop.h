@@ -16,6 +16,16 @@ struct ControlConfig {
     bool coolingEnabled = true;
     bool heatingEnabled = false;
 
+    // Calibration correction for the control sensor, in °C, added to its raw
+    // reading before this loop compares it against the setpoint:
+    //   trueC = rawC + controlSensorOffsetC
+    // Pushed from the backend, which mirrors it from whichever sensor is
+    // designated the control sensor, and persisted to NVS alongside the rest
+    // of the config so it survives reboots and MQTT outages exactly like the
+    // setpoint does. Defaults to 0 — an uncalibrated device behaves as if
+    // this field didn't exist.
+    float controlSensorOffsetC = 0.0f;
+
     // PID mode only. pidWindowMs is the time-proportioning window: PID
     // output is sampled once per window and converted into "on for this
     // fraction of the window" — compressors/heaters can't do 60% power, so
@@ -31,6 +41,19 @@ public:
     const ControlConfig& config() const;
     ControlOutput update(float temperatureC, uint32_t nowMs);
     ControlOutput currentOutput() const;
+
+    // Forces IDLE and arms BOTH min-off timers, unconditionally — including
+    // when already IDLE, which is the whole point.
+    //
+    // Call when something outside this loop has changed what the outputs
+    // physically mean, i.e. relay polarity being reconfigured. Under a wrong
+    // polarity the compressor may have been running the entire time the loop
+    // believed it was idle; correcting the polarity stops it, and without
+    // arming min-off here nothing would prevent the loop re-energizing it
+    // moments later. Short-cycling a compressor that hasn't equalized
+    // damages it, so the timers have to start from now regardless of what
+    // this loop thought its output was. See ADR-022.
+    void forceIdleAndArmMinOff(uint32_t nowMs);
 
 private:
     static constexpr float kMinValidTempC = -50.0f;

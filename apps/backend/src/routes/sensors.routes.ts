@@ -6,6 +6,7 @@ import {
   listSensorsForDevice,
   setControlSensor,
   setSensorLabel,
+  setSensorOffset,
 } from "../db/repositories/device-sensors.repo.js";
 import { updateDeviceConfig } from "../db/repositories/device-configs.repo.js";
 import { publishDeviceConfig } from "../mqtt/publish-config.js";
@@ -42,15 +43,37 @@ export async function sensorsRoutes(fastify: FastifyInstance): Promise<void> {
         setSensorLabel(fastify.db, id, address, parsed.data.label);
       }
 
+      if (parsed.data.offsetC !== undefined) {
+        setSensorOffset(fastify.db, id, address, parsed.data.offsetC);
+      }
+
       if (parsed.data.isControlSensor === true) {
         setControlSensor(fastify.db, id, address);
-        // Implements ADR-004: tell the device via the existing declarative
-        // config channel, never a direct command.
-        const config = updateDeviceConfig(fastify.db, id, { controlSensorAddress: address });
+      }
+
+      const sensors = listSensorsForDevice(fastify.db, id);
+
+      // The device needs telling whenever either half of "which sensor
+      // controls, and how far off is it" changes — a new control sensor, or a
+      // new offset on the one that already controls. Both go out over the
+      // existing declarative config channel, never as a direct command
+      // (ADR-004), and the offset is mirrored rather than applied here so the
+      // ESP32 corrects its own control input (ADR-020).
+      const controlSensor = sensors.find((sensor) => sensor.isControlSensor);
+      const editedTheControlSensor = controlSensor?.address === address;
+      if (
+        controlSensor &&
+        (parsed.data.isControlSensor === true ||
+          (parsed.data.offsetC !== undefined && editedTheControlSensor))
+      ) {
+        const config = updateDeviceConfig(fastify.db, id, {
+          controlSensorAddress: controlSensor.address,
+          controlSensorOffsetC: controlSensor.offsetC,
+        });
         publishDeviceConfig(fastify.mqttClient, id, config);
       }
 
-      return listSensorsForDevice(fastify.db, id);
+      return sensors;
     },
   );
 }

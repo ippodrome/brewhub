@@ -17,6 +17,17 @@ public:
 
     void save(const ControlConfig& config);
 
+    // Relay polarity is board wiring, not control logic, so it lives here
+    // rather than in ControlConfig — ControlLoop would otherwise carry a
+    // field it never reads. Each getter takes the board's compiled-in
+    // default (from its pins.h) and returns it unless a value has actually
+    // been pushed and persisted, so an un-configured device behaves exactly
+    // as it did before this setting existed.
+    bool loadCoolingRelayActiveLow(bool compiledDefault);
+    void saveCoolingRelayActiveLow(bool activeLow);
+    bool loadHeatingRelayActiveLow(bool compiledDefault);
+    void saveHeatingRelayActiveLow(bool activeLow);
+
 private:
     Preferences prefs_;
     static constexpr const char* kNamespace = "unibrew-cfg";

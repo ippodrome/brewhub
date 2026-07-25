@@ -33,15 +33,19 @@ export function startPourEvent(
   return Number(result.lastInsertRowid);
 }
 
+/** Returns the pour's new running total, which kick detection needs to judge whether its rate is meaningful yet. */
 export function extendPourEvent(
   db: Database.Database,
   pourEventId: number,
   addedVolumeMl: number,
   nowMs: number,
-): void {
-  db.prepare(
-    "UPDATE pour_events SET volume_ml = volume_ml + ?, ended_at = ? WHERE id = ?",
-  ).run(addedVolumeMl, nowMs, pourEventId);
+): number {
+  const row = db
+    .prepare<[number, number, number], { volume_ml: number }>(
+      "UPDATE pour_events SET volume_ml = volume_ml + ?, ended_at = ? WHERE id = ? RETURNING volume_ml",
+    )
+    .get(addedVolumeMl, nowMs, pourEventId);
+  return row?.volume_ml ?? addedVolumeMl;
 }
 
 export function listPourEventsForTap(

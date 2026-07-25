@@ -8,13 +8,18 @@ import { createMqttClient } from "./mqtt/client.js";
 import { startPresenceSweep } from "./mqtt/presence.js";
 import { startProfileScheduler } from "./profiles/scheduler.js";
 import { startTelemetryRollup } from "./telemetry/rollup.js";
+import { applySensorOffsets } from "./telemetry/apply-sensor-offsets.js";
 import { getDevice, listDevices, setDeviceFirmwareVersion, setDeviceOnline } from "./db/repositories/devices.repo.js";
 import { insertReading } from "./db/repositories/readings.repo.js";
 import { insertFlowReading } from "./db/repositories/flow-readings.repo.js";
 import { insertWeightReading } from "./db/repositories/weight-readings.repo.js";
 import { insertGravityReading } from "./db/repositories/gravity-readings.repo.js";
 import { getDeviceConfig, updateDeviceConfig } from "./db/repositories/device-configs.repo.js";
-import { listSensorsForDevice, recordSensorSeen } from "./db/repositories/device-sensors.repo.js";
+import {
+  getSensorOffsets,
+  listSensorsForDevice,
+  recordSensorSeen,
+} from "./db/repositories/device-sensors.repo.js";
 import { upsertDiscoveredDevice } from "./db/repositories/discovered-devices.repo.js";
 import { getHydrometerByIdentifier } from "./db/repositories/hydrometers.repo.js";
 import { applyCalibration } from "./gravity/apply-calibration.js";
@@ -78,33 +83,50 @@ async function main(): Promise<void> {
       setDeviceFirmwareVersion(db, payload.deviceId, payload.firmwareVersion);
       broadcastToAll({ type: "status", payload });
     },
-    onTelemetry: (payload) => {
-      const device = getDevice(db, payload.deviceId);
+    onTelemetry: (rawPayload) => {
+      const device = getDevice(db, rawPayload.deviceId);
       if (!device) {
-        app.log.warn({ deviceId: payload.deviceId }, "Telemetry for unknown device, dropping");
+        app.log.warn({ deviceId: rawPayload.deviceId }, "Telemetry for unknown device, dropping");
         return;
       }
-      insertReading(db, payload);
       // Telemetry is itself evidence of life, independent of the periodic status heartbeat.
-      setDeviceOnline(db, payload.deviceId, true, Date.now());
+      setDeviceOnline(db, rawPayload.deviceId, true, Date.now());
 
-      for (const sensor of payload.sensors) {
-        const isNewSensor = recordSensorSeen(db, payload.deviceId, sensor.address, Date.now());
+      // Sensors are registered before offsets are read so a brand-new sensor
+      // is present in the map (at its 0 default) rather than missing from it.
+      for (const sensor of rawPayload.sensors) {
+        const isNewSensor = recordSensorSeen(db, rawPayload.deviceId, sensor.address, Date.now());
         if (isNewSensor) {
           publishTemperatureSensorDiscovery(mqttClient, device, sensor.address, null);
         }
       }
 
+      // Everything from here on works with calibrated temperatures — storage,
+      // broadcast, HA. The device's own control loop applies the matching
+      // correction itself, from config.controlSensorOffsetC (see ADR-020).
+      const payload = applySensorOffsets(rawPayload, getSensorOffsets(db, rawPayload.deviceId));
+      insertReading(db, payload);
+
       for (const flow of payload.flows) {
-        const lowVolumeEvent = applyFlowReading(db, payload.deviceId, flow, payload.ts);
+        const { lowVolume, kick } = applyFlowReading(db, payload.deviceId, flow, payload.ts);
         insertFlowReading(db, payload.deviceId, flow.index, payload.ts, flow.pulseCount);
-        if (lowVolumeEvent) {
+        if (lowVolume) {
           // Fire-and-forget — network calls to push/Telegram/Discord must
           // never block MQTT message processing. sendNotification already
           // isolates failures per-channel internally.
           void sendNotification(db, app.log, {
             title: "Keg running low",
-            body: `${lowVolumeEvent.tapName} is running low.`,
+            body: `${lowVolume.tapName} is running low.`,
+          });
+        }
+        if (kick) {
+          app.log.warn(
+            { tapId: kick.tapId, rateMlPerS: Math.round(kick.rateMlPerS) },
+            "Kick detected — flow rate far above what a beer line can pour",
+          );
+          void sendNotification(db, app.log, {
+            title: "Keg kicked",
+            body: `${kick.tapName} looks empty — gas is running through the line. Close the tap and change the keg.`,
           });
         }
         const flowTap = getTapByFlowIndex(db, payload.deviceId, flow.index);
@@ -144,6 +166,9 @@ async function main(): Promise<void> {
         if (controlSensor) {
           const updated = updateDeviceConfig(db, payload.deviceId, {
             controlSensorAddress: controlSensor.address,
+            // Sent together with the address so the two can never disagree,
+            // even if an offset was set before this sensor was designated.
+            controlSensorOffsetC: controlSensor.offsetC,
           });
           publishDeviceConfig(mqttClient, payload.deviceId, updated);
         }

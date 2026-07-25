@@ -34,6 +34,42 @@ export const DeviceConfigSchema = z.object({
   // the first-ever sensor seen for the device — see device-sensors backend
   // logic) — firmware falls back to its first reading if null/unmatched.
   controlSensorAddress: z.string().nullable(),
+  /**
+   * Calibration correction for the control sensor, in °C, added to its raw
+   * reading before the firmware's control loop sees it. Mirrors the
+   * DeviceSensor.offsetC of whichever sensor is currently designated the
+   * control sensor — the backend keeps the two in sync (see ADR-020).
+   *
+   * It lives in the device config rather than being applied backend-side
+   * because ADR-004 puts the control loop on the ESP32: a correction the
+   * backend applied to its own copy of the reading would never reach the
+   * thing actually deciding when the compressor runs, and would survive
+   * neither an MQTT outage nor a backend restart.
+   *
+   * Defaults to 0 when absent, mirroring the column's own DEFAULT: a config
+   * that predates calibration is an uncalibrated one, not an invalid one.
+   */
+  controlSensorOffsetC: z.number().default(0),
+  /**
+   * Relay wiring polarity: true when the relay module energizes on a LOW
+   * output (the common case for opto-isolated boards), false for active-high.
+   * Null means "use whatever the board's compiled-in default says" — so an
+   * existing device keeps behaving exactly as it did before this field
+   * existed, and nothing changes until someone deliberately sets it.
+   *
+   * Exists because the polarity depends on the specific relay module plugged
+   * into the header, not on the PCB — both board pin maps flag their
+   * `RELAY_ACTIVE_LOW` as unverified. Getting it wrong inverts the
+   * compressor: it runs when the loop wants idle, which freezes the beer and
+   * short-cycles the compressor. Being able to correct that from the UI
+   * during commissioning, rather than by reflashing, is the entire point.
+   *
+   * Changing it is treated as a safety event by the firmware, not a plain
+   * config edit — see ADR-022.
+   */
+  coolingRelayActiveLow: z.boolean().nullable().default(null),
+  /** As coolingRelayActiveLow, for the heating output. Inert on devices with no heater (kegerators). */
+  heatingRelayActiveLow: z.boolean().nullable().default(null),
   overrideExpiresAt: z.number().int().nullable().optional(),
   // keg_scale devices only: bumping this to a new (non-null) value tells the
   // device to tare (zero) its load cell on the next config apply. Inert for
@@ -71,6 +107,9 @@ export const DEFAULT_DEVICE_CONFIG: DeviceConfig = {
   pidGains: { kp: 0, ki: 0, kd: 0 },
   pidWindowMs: 300000,
   controlSensorAddress: null,
+  controlSensorOffsetC: 0,
+  coolingRelayActiveLow: null,
+  heatingRelayActiveLow: null,
   overrideExpiresAt: null,
   tareRequestId: null,
   loadCellCalibrationFactor: null,

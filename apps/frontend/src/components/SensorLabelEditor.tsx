@@ -1,37 +1,73 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Device } from "@brewhub/shared-types";
+import { MAX_SENSOR_OFFSET_C, type Device } from "@brewhub/shared-types";
 import { listSensors, updateSensor } from "../api/sensors";
 
-function LabelInput({
+const inputClass =
+  "rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+
+function SensorFields({
   deviceId,
   address,
   initialLabel,
+  initialOffsetC,
 }: {
   deviceId: string;
   address: string;
   initialLabel: string | null;
+  initialOffsetC: number;
 }): JSX.Element {
   const [label, setLabel] = useState(initialLabel ?? "");
+  const [offset, setOffset] = useState(String(initialOffsetC));
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => updateSensor(deviceId, address, { label: label || null }),
+    mutationFn: (patch: { label?: string | null; offsetC?: number }) =>
+      updateSensor(deviceId, address, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sensors", deviceId] }),
   });
 
+  function commitOffset(): void {
+    const parsed = Number(offset);
+    // Reset the field rather than sending something the API would reject —
+    // an offset outside the allowed band is always a typo.
+    if (!Number.isFinite(parsed) || Math.abs(parsed) > MAX_SENSOR_OFFSET_C) {
+      setOffset(String(initialOffsetC));
+      return;
+    }
+    if (parsed === initialOffsetC) return;
+    mutation.mutate({ offsetC: parsed });
+  }
+
   return (
-    <div className="flex gap-2">
+    <div className="mt-1 flex flex-wrap items-center gap-2">
       <input
-        className="w-32 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+        className={`${inputClass} w-32`}
         placeholder="Label"
         value={label}
         onChange={(e) => setLabel(e.target.value)}
-        onBlur={() => mutation.mutate()}
+        onBlur={() => mutation.mutate({ label: label || null })}
         onKeyDown={(e) => {
-          if (e.key === "Enter") mutation.mutate();
+          if (e.key === "Enter") mutation.mutate({ label: label || null });
         }}
       />
+      <label className="flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-500">
+        <span title={`Added to this sensor's raw reading. Range ±${MAX_SENSOR_OFFSET_C} °C.`}>
+          Offset
+        </span>
+        <input
+          className={`${inputClass} w-20 text-right`}
+          type="number"
+          step="0.05"
+          value={offset}
+          onChange={(e) => setOffset(e.target.value)}
+          onBlur={commitOffset}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitOffset();
+          }}
+        />
+        <span>°C</span>
+      </label>
     </div>
   );
 }
@@ -67,6 +103,12 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
         </p>
       )}
       {sensorsQuery.data && sensorsQuery.data.length > 0 && (
+        <>
+        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          Offset is added to the raw reading to correct it against a reference thermometer. The
+          control sensor's offset is also pushed to the device, so its own control loop corrects the
+          same way.
+        </p>
         <ul className="space-y-2">
           {sensorsQuery.data.map((sensor) => (
             <li
@@ -75,7 +117,12 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-mono text-xs text-neutral-600 dark:text-neutral-500">{sensor.address}</p>
-                <LabelInput deviceId={device.id} address={sensor.address} initialLabel={sensor.label} />
+                <SensorFields
+                  deviceId={device.id}
+                  address={sensor.address}
+                  initialLabel={sensor.label}
+                  initialOffsetC={sensor.offsetC}
+                />
               </div>
               {sensor.isControlSensor ? (
                 <span className="whitespace-nowrap rounded-xl bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">
@@ -93,6 +140,7 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );

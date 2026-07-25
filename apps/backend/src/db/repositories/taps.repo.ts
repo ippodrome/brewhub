@@ -24,6 +24,7 @@ export interface TapRow {
   last_activity_at: number | null;
   created_at: number;
   low_volume_notified: number;
+  kicked_at: number | null;
 }
 
 function toTap(row: TapRow): Tap {
@@ -46,6 +47,7 @@ function toTap(row: TapRow): Tap {
     fullVolumeMl: row.full_volume_ml,
     remainingVolumeMl: row.remaining_volume_ml,
     createdAt: row.created_at,
+    kickedAt: row.kicked_at,
   };
 }
 
@@ -227,10 +229,16 @@ export function findTapChannelConflict(
   return findWeightTapConflict(db, req.weightDeviceId, req.weightIndex, excludeTapId);
 }
 
+/** Tapping a new keg clears both once-per-keg flags along with the volume. */
 export function resetKeg(db: Database.Database, id: number): void {
   db.prepare(
-    "UPDATE taps SET remaining_volume_ml = full_volume_ml, low_volume_notified = 0 WHERE id = ?",
+    "UPDATE taps SET remaining_volume_ml = full_volume_ml, low_volume_notified = 0, kicked_at = NULL WHERE id = ?",
   ).run(id);
+}
+
+/** Records that the keg was detected as blown. Only cleared by resetKeg, so it notifies once per keg. */
+export function markKicked(db: Database.Database, id: number, atMs: number): void {
+  db.prepare("UPDATE taps SET kicked_at = ? WHERE id = ?").run(atMs, id);
 }
 
 /** Marks the one-time low-volume notification as sent — see the migration's doc comment on this column. */
@@ -268,6 +276,30 @@ export function applyFlowReadingUpdate(
     pourInProgressId: update.pourInProgressId,
     lastActivityAt: update.lastActivityAt,
   });
+}
+
+/**
+ * Installs a freshly calibrated pulses-per-litre factor, and restates the
+ * remaining volume as "what was in the keg when calibration started, minus
+ * what we now know was actually poured".
+ *
+ * The correction matters because the calibration pour was already subtracted
+ * once, live, using the old (wrong) factor — that's what the pour-processing
+ * path does with every pulse it sees, and it has no idea a calibration is in
+ * progress. Recomputing from the session's baseline replaces that estimate
+ * with the measured truth instead of compounding the error.
+ */
+export function applyFlowCalibration(
+  db: Database.Database,
+  tapId: number,
+  pulsesPerLiter: number,
+  remainingVolumeMl: number,
+): void {
+  db.prepare("UPDATE taps SET pulses_per_liter = ?, remaining_volume_ml = ? WHERE id = ?").run(
+    pulsesPerLiter,
+    Math.max(0, remainingVolumeMl),
+    tapId,
+  );
 }
 
 /** Persists a recomputed remaining volume for a weight-measured tap — stateless, no pour bookkeeping. */

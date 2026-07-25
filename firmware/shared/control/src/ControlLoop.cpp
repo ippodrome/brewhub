@@ -40,6 +40,20 @@ ControlOutput ControlLoop::currentOutput() const
     return output_;
 }
 
+void ControlLoop::forceIdleAndArmMinOff(uint32_t nowMs)
+{
+    output_ = ControlOutput::IDLE;
+    lastTransitionMs_ = nowMs;
+    heatingLastOffMs_ = nowMs;
+    coolingLastOffMs_ = nowMs;
+
+    // A time-proportioning window computed under the old interpretation of
+    // the outputs is meaningless now; start a fresh one from current
+    // conditions rather than finishing the old duty cycle.
+    pid_.reset();
+    pidWindowInitialized_ = false;
+}
+
 bool ControlLoop::isValidReading(float temperatureC)
 {
     if (std::isnan(temperatureC)) {
@@ -223,9 +237,17 @@ ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
     invalidSinceMs_ = std::numeric_limits<uint32_t>::max();
     hasEverValidReading_ = true;
 
+    // Calibration is applied AFTER the validity check, deliberately: fault
+    // detection belongs on what the sensor actually reported. A DS18B20
+    // disconnect reads -127, and nudging that by an offset before range-
+    // checking it would only ever move a fault value further from, never
+    // into, the plausible band — but keeping the check on raw data means the
+    // fault logic stays independent of whatever calibration happens to be set.
+    const float calibratedC = temperatureC + config_.controlSensorOffsetC;
+
     ControlOutput desired = (config_.mode == ControlMode::PID)
-        ? desiredPid(temperatureC, nowMs)
-        : desiredThermostat(temperatureC);
+        ? desiredPid(calibratedC, nowMs)
+        : desiredThermostat(calibratedC);
 
     applyDesired(desired, nowMs);
     return output_;

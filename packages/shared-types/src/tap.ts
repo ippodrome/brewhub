@@ -31,6 +31,12 @@ export const TapSchema = z.object({
   fullVolumeMl: z.number().positive(),
   remainingVolumeMl: z.number(),
   createdAt: z.number().int(),
+  /**
+   * When this keg was last detected as having kicked (blown / run dry), or
+   * null. Flow-measured taps only — see KICK_* constants below for what
+   * "detected" means. Cleared by tapping a new keg (resetKeg).
+   */
+  kickedAt: z.number().int().nullable().default(null),
 
   // measurementType === "flow"
   flowIndex: z.number().int().min(0).max(8).nullable(),
@@ -103,6 +109,31 @@ export const UpdateTapRequestSchema = z.object({
   resetKeg: z.boolean().optional(),
 });
 export type UpdateTapRequest = z.infer<typeof UpdateTapRequestSchema>;
+
+/**
+ * Kick detection. When a keg runs dry the line fills with CO2 instead of
+ * beer, and the flow meter free-spins — gas offers far less resistance than
+ * liquid, so the measured "flow rate" jumps well past anything a balanced
+ * draft system can pour.
+ *
+ * Rate is the signal rather than volume, deliberately: a volume-based rule
+ * ("a pour over 2 L must be a kick") can't tell a blown keg from a growler
+ * fill, which homebrewers do on purpose. A sustained 3-4x normal flow rate
+ * has no legitimate explanation.
+ *
+ * A balanced system pours a pint in roughly 20-30 s, i.e. ~15-25 mL/s. The
+ * threshold sits well above that so normal pouring — including a fast pour
+ * down the side of a glass — never trips it.
+ *
+ * The volume floor exists so a single noisy tick can't fire it: the pour has
+ * to have actually delivered something before its rate means anything.
+ *
+ * Both are starting points, not measured constants — they depend on line
+ * length, pressure and the meter itself. If a system reports false kicks,
+ * KICK_RATE_ML_PER_S is the number to raise.
+ */
+export const KICK_RATE_ML_PER_S = 60;
+export const KICK_MIN_POUR_VOLUME_ML = 400;
 
 /** Flow-measured taps only, for now — see TapSchema doc comment. */
 export const PourEventSchema = z.object({

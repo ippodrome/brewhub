@@ -7,6 +7,7 @@ interface DeviceSensorRow {
   label: string | null;
   is_control_sensor: number;
   last_seen_at: number | null;
+  offset_c: number;
 }
 
 function toDeviceSensor(row: DeviceSensorRow): DeviceSensor {
@@ -16,6 +17,7 @@ function toDeviceSensor(row: DeviceSensorRow): DeviceSensor {
     label: row.label,
     isControlSensor: row.is_control_sensor === 1,
     lastSeenAt: row.last_seen_at,
+    offsetC: row.offset_c,
   };
 }
 
@@ -81,6 +83,33 @@ export function setSensorLabel(
     deviceId,
     address,
   );
+}
+
+export function setSensorOffset(
+  db: Database.Database,
+  deviceId: string,
+  address: string,
+  offsetC: number,
+): void {
+  db.prepare("UPDATE device_sensors SET offset_c = ? WHERE device_id = ? AND address = ?").run(
+    offsetC,
+    deviceId,
+    address,
+  );
+}
+
+/**
+ * address -> offsetC for every known sensor on a device. Used on the telemetry
+ * ingest path, where it runs per message, so it's one query rather than one
+ * per sensor in the payload.
+ */
+export function getSensorOffsets(db: Database.Database, deviceId: string): Map<string, number> {
+  const rows = db
+    .prepare<[string], { address: string; offset_c: number }>(
+      "SELECT address, offset_c FROM device_sensors WHERE device_id = ?",
+    )
+    .all(deviceId);
+  return new Map(rows.map((row) => [row.address, row.offset_c]));
 }
 
 /** Exactly one sensor per device can be the control sensor. */

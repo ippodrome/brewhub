@@ -30,6 +30,10 @@ constexpr uint32_t kStatusIntervalMs = 30000;
 constexpr uint32_t kWatchdogTimeoutS = 30;
 constexpr float kMinPlausibleC = -50.0f;
 constexpr float kMaxPlausibleC = 150.0f;
+// Mirrors MAX_SENSOR_OFFSET_C in packages/shared-types — a "calibration"
+// larger than this is a broken sensor, not a miscalibrated one, and applying
+// it would quietly shift the whole control loop.
+constexpr float kMaxPlausibleSensorOffsetC = 10.0f;
 // Must match shared-types' FirmwareBoardSchema exactly — used only for the
 // MQTT discovery announcement (see MqttClientWrapper::begin).
 constexpr const char* BOARD_NAME = "fermenter-brewpi";
@@ -51,6 +55,18 @@ uint32_t lastStatusMs = 0;
 // fallback-to-first-sensor window on a multi-sensor device rebooting while
 // MQTT is simultaneously unreachable — never a loss of control entirely.
 char controlSensorAddressHex[kSensorAddressHexLength + 1] = "";
+
+// Which logic level energizes each relay. Seeded from the board's compiled-in
+// default and overridden by pushed config; restored from NVS on boot so it
+// survives an outage. Tracked separately per output because a fermenter
+// commonly drives an SSR for heat and a mechanical relay for the compressor,
+// which need not share a polarity. See ADR-022.
+bool coolingRelayActiveLow = RELAY_ACTIVE_LOW;
+bool heatingRelayActiveLow = RELAY_ACTIVE_LOW;
+
+// Defined below, but needed by onConfigMessage to force the outputs safe the
+// moment a polarity changes.
+void applyRelayOutput(ControlOutput output);
 
 const char* controlModeToString(ControlMode mode) {
     switch (mode) {
@@ -129,19 +145,62 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
     } else if (doc["controlSensorAddress"].isNull()) {
         controlSensorAddressHex[0] = '\0';
     }
+    if (doc["controlSensorOffsetC"].is<float>()) {
+        float offsetC = doc["controlSensorOffsetC"];
+        if (!isnan(offsetC) && fabsf(offsetC) <= kMaxPlausibleSensorOffsetC) {
+            next.controlSensorOffsetC = offsetC;
+        } else {
+            Serial.println("[config] rejected implausible controlSensorOffsetC");
+        }
+    }
 
     controlLoop.setConfig(next);
     configStore.save(next);
 
+    // Relay polarity is handled after the control config, and deliberately
+    // not through ControlConfig: flipping it changes what the outputs
+    // physically mean, so it is a safety event rather than a setting. Null
+    // (or absent) means "keep using the board's compiled-in default".
+    bool polarityChanged = false;
+    if (doc["coolingRelayActiveLow"].is<bool>()) {
+        bool requested = doc["coolingRelayActiveLow"];
+        if (requested != coolingRelayActiveLow) {
+            coolingRelayActiveLow = requested;
+            configStore.saveCoolingRelayActiveLow(requested);
+            polarityChanged = true;
+            Serial.printf("[config] cooling relay polarity changed to active-%s\n", requested ? "low" : "high");
+        }
+    }
+    if (doc["heatingRelayActiveLow"].is<bool>()) {
+        bool requested = doc["heatingRelayActiveLow"];
+        if (requested != heatingRelayActiveLow) {
+            heatingRelayActiveLow = requested;
+            configStore.saveHeatingRelayActiveLow(requested);
+            polarityChanged = true;
+            Serial.printf("[config] heating relay polarity changed to active-%s\n", requested ? "low" : "high");
+        }
+    }
+    if (polarityChanged) {
+        // Under the previous (wrong) polarity an actuator may have been
+        // running while the loop believed it was idle. Force IDLE and arm
+        // min-off before writing the pins, so the corrected outputs start
+        // from a known-off state and cannot be re-energized until the
+        // compressor has had time to equalize.
+        controlLoop.forceIdleAndArmMinOff(millis());
+        applyRelayOutput(ControlOutput::IDLE);
+        Serial.println("[config] forced idle after relay polarity change");
+    }
+
     Serial.printf(
         "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu "
-        "pid(kp=%.2f ki=%.2f kd=%.2f window=%lu) controlSensor=%s\n",
+        "pid(kp=%.2f ki=%.2f kd=%.2f window=%lu) controlSensor=%s offset=%.2f\n",
         next.setpointC, next.hysteresisC, controlModeToString(next.mode),
         static_cast<unsigned long>(next.minOnTimeMs),
         static_cast<unsigned long>(next.minOffTimeMs),
         next.pidGains.kp, next.pidGains.ki, next.pidGains.kd,
         static_cast<unsigned long>(next.pidWindowMs),
-        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)");
+        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)",
+        next.controlSensorOffsetC);
 }
 
 // Blocking (see OtaUpdater doc comment) — the watchdog can't be fed from
@@ -194,8 +253,8 @@ void applyRelayOutput(ControlOutput output) {
     bool heatingOn = (output == ControlOutput::HEATING);
     bool coolingOn = (output == ControlOutput::COOLING);
 
-    digitalWrite(HEATING_RELAY_PIN, heatingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
-    digitalWrite(COOLING_RELAY_PIN, coolingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
+    digitalWrite(HEATING_RELAY_PIN, heatingOn == heatingRelayActiveLow ? LOW : HIGH);
+    digitalWrite(COOLING_RELAY_PIN, coolingOn == coolingRelayActiveLow ? LOW : HIGH);
 }
 
 void connectWiFi() {
@@ -270,9 +329,16 @@ void setup() {
 
     pinMode(HEATING_RELAY_PIN, OUTPUT);
     pinMode(COOLING_RELAY_PIN, OUTPUT);
+
+    // NVS is opened, and the persisted relay polarities restored, BEFORE the
+    // first output write — otherwise that write would use the compiled-in
+    // defaults and could briefly energize an actuator on every boot of a
+    // device whose polarity has been corrected.
+    configStore.begin();
+    coolingRelayActiveLow = configStore.loadCoolingRelayActiveLow(RELAY_ACTIVE_LOW);
+    heatingRelayActiveLow = configStore.loadHeatingRelayActiveLow(RELAY_ACTIVE_LOW);
     applyRelayOutput(ControlOutput::IDLE); // safe default before any control decision has run
 
-    configStore.begin();
     controlLoop.setConfig(configStore.load());
 
     sensorManager.begin(ONE_WIRE_PIN);

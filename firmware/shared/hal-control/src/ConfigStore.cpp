@@ -22,6 +22,8 @@ ControlConfig ConfigStore::load() {
     config.pidGains.ki = prefs_.getFloat("pidKi", defaults.pidGains.ki);
     config.pidGains.kd = prefs_.getFloat("pidKd", defaults.pidGains.kd);
     config.pidWindowMs = prefs_.getULong("pidWindowMs", defaults.pidWindowMs);
+    // NVS keys are capped at 15 characters, hence the abbreviation.
+    config.controlSensorOffsetC = prefs_.getFloat("ctrlOffsetC", defaults.controlSensorOffsetC);
     return config;
 }
 
@@ -37,6 +39,23 @@ void ConfigStore::save(const ControlConfig& config) {
     prefs_.putFloat("pidKi", config.pidGains.ki);
     prefs_.putFloat("pidKd", config.pidGains.kd);
     prefs_.putULong("pidWindowMs", config.pidWindowMs);
+    prefs_.putFloat("ctrlOffsetC", config.controlSensorOffsetC);
+}
+
+bool ConfigStore::loadCoolingRelayActiveLow(bool compiledDefault) {
+    return prefs_.getBool("coolRelayAL", compiledDefault);
+}
+
+void ConfigStore::saveCoolingRelayActiveLow(bool activeLow) {
+    prefs_.putBool("coolRelayAL", activeLow);
+}
+
+bool ConfigStore::loadHeatingRelayActiveLow(bool compiledDefault) {
+    return prefs_.getBool("heatRelayAL", compiledDefault);
+}
+
+void ConfigStore::saveHeatingRelayActiveLow(bool activeLow) {
+    prefs_.putBool("heatRelayAL", activeLow);
 }
 
 } // namespace unibrew

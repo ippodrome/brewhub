@@ -11,6 +11,8 @@ const SECTIONS: Section[] = [
   { id: "fermenter-control", title: "Fermenter control" },
   { id: "profiles", title: "Profiles" },
   { id: "kegerator-taps", title: "Kegerator & taps" },
+  { id: "relay-wiring", title: "Relay wiring" },
+  { id: "sensor-calibration", title: "Sensor calibration" },
   { id: "gravity", title: "Gravity & hydrometers" },
   { id: "firmware", title: "Firmware & updates" },
   { id: "notifications", title: "Notifications" },
@@ -179,9 +181,77 @@ export function Guide(): JSX.Element {
               first (see its device card) and tared with nothing but the empty platform on it before a keg goes on.
             </p>
           </div>
+          <div className={card}>
+            <p className={label}>Calibrating a flow meter</p>
+            <p className={p}>
+              A flow meter's pulses-per-litre figure varies between units, and the datasheet number is only a
+              starting point. Hit <strong>Calibrate</strong> on a flow-measured tap, pour at least 500 mL into a
+              measuring jug (or onto a scale), then enter what you actually got — the factor is worked out for you.
+              The poured amount is deducted from the keg using the measured value, so calibrating doesn't throw the
+              remaining volume off.
+            </p>
+            <p className={p}>
+              Weighing is usually more accurate than reading a jug's graduations. Weigh the empty vessel first and
+              subtract it; water is 1.000 g/mL, beer near terminal gravity about 1.010. If the result looks
+              implausible it's refused rather than saved — pour again or check the amount you entered.
+            </p>
+          </div>
+          <div className={card}>
+            <p className={label}>Kick detection</p>
+            <p className={p}>
+              When a keg runs dry the line fills with CO<sub>2</sub>, which flows far faster than beer and makes the
+              meter spin up. A sustained rate no draft system can pour is treated as the keg having kicked: you get a
+              notification, and the tap shows a banner until you tap a new keg. It only fires once per keg, so a line
+              left blowing gas won't spam you.
+            </p>
+            <p className={p}>
+              It's rate-based rather than volume-based on purpose, so filling a growler doesn't look like a kick.
+            </p>
+          </div>
           <p className={p}>
             Either way, you'll get a notification automatically once a tap drops below 15% remaining — see{" "}
             <a href="#notifications" className="underline">Notifications</a>.
+          </p>
+        </section>
+
+        <section id="relay-wiring" className="space-y-3">
+          <h2 className={h2}>Relay wiring</h2>
+          <p className={p}>
+            Relay modules differ in which logic level switches them on — most opto-isolated boards are active-low,
+            some are active-high. The board's own default is compiled into the firmware, but it depends on the
+            module you actually plugged into the header, not on the PCB, so it can be wrong.
+          </p>
+          <p className={p}>
+            The symptom is unmistakable: the compressor runs when the device says it's idle, and stops when it says
+            it's cooling. Fix it under <strong>Relay wiring</strong> in a device's config, rather than reflashing.
+          </p>
+          <p className={p}>
+            Changing it is handled carefully. Under the wrong polarity the compressor may have been running the
+            whole time the control loop thought it was idle, so on a change the device forces every output off and
+            waits out its full minimum off-time before it will energize anything again — a compressor restarted
+            before its pressure has equalized can be damaged. Expect a pause after applying the change; that's the
+            protection working.
+          </p>
+        </section>
+
+        <section id="sensor-calibration" className="space-y-3">
+          <h2 className={h2}>Sensor calibration</h2>
+          <p className={p}>
+            DS18B20 probes are only accurate to about ±0.5 °C, which is enough to matter when you're holding a
+            fermentation to a tenth of a degree. Each sensor has an <strong>Offset</strong> field in a device's{" "}
+            <strong>Sensors</strong> tab: compare the reading against a thermometer you trust, and enter the
+            difference needed to correct it. A probe reading 0.4 °C high gets an offset of −0.4.
+          </p>
+          <p className={p}>
+            The offset is applied as readings arrive, so charts, history and Home Assistant all show corrected
+            temperatures. For whichever sensor is set as the <strong>control sensor</strong>, the same correction is
+            also pushed down to the device itself, so its control loop holds the corrected temperature rather than
+            the raw one — the number you set as a setpoint is the temperature you actually get. That correction is
+            stored on the device, so it keeps applying even if the backend or network goes down.
+          </p>
+          <p className={p}>
+            Changing an offset doesn't rewrite readings already recorded — old charts keep showing what the system
+            believed at the time, which is also what it made its control decisions from.
           </p>
         </section>
 

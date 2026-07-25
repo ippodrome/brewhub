@@ -32,6 +32,10 @@ constexpr uint32_t kStatusIntervalMs = 30000;
 constexpr uint32_t kWatchdogTimeoutS = 30;
 constexpr float kMinPlausibleC = -50.0f;
 constexpr float kMaxPlausibleC = 150.0f;
+// Mirrors MAX_SENSOR_OFFSET_C in packages/shared-types — a "calibration"
+// larger than this is a broken sensor, not a miscalibrated one, and applying
+// it would quietly shift the whole control loop.
+constexpr float kMaxPlausibleSensorOffsetC = 10.0f;
 // Must match shared-types' FirmwareBoardSchema exactly — used only for the
 // MQTT discovery announcement (see MqttClientWrapper::begin).
 constexpr const char* BOARD_NAME = "kegerator-kegcop";
@@ -78,6 +82,16 @@ uint32_t lastStatusMs = 0;
 // Sensors UI on first setup. See main.cpp's fermenter equivalent for why
 // this isn't persisted to NVS (same reasoning applies).
 char controlSensorAddressHex[kSensorAddressHexLength + 1] = "";
+
+// Which logic level energizes the cooling relay. Seeded from the board's
+// compiled-in default and overridden by pushed config; restored from NVS on
+// boot so it survives an outage. See ADR-022 for why this is runtime state
+// rather than the constexpr it used to be.
+bool coolingRelayActiveLow = RELAY_ACTIVE_LOW;
+
+// Defined below, but needed by onConfigMessage to force the output safe the
+// moment polarity changes.
+void applyRelayOutput(ControlOutput output);
 
 const char* controlModeToString(ControlMode mode) {
     switch (mode) {
@@ -156,6 +170,14 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
     } else if (doc["controlSensorAddress"].isNull()) {
         controlSensorAddressHex[0] = '\0';
     }
+    if (doc["controlSensorOffsetC"].is<float>()) {
+        float offsetC = doc["controlSensorOffsetC"];
+        if (!isnan(offsetC) && fabsf(offsetC) <= kMaxPlausibleSensorOffsetC) {
+            next.controlSensorOffsetC = offsetC;
+        } else {
+            Serial.println("[config] rejected implausible controlSensorOffsetC");
+        }
+    }
 
     // No heating on a kegerator — never let a misconfigured backend push
     // heatingEnabled=true here regardless of what was sent.
@@ -164,13 +186,36 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
     controlLoop.setConfig(next);
     configStore.save(next);
 
+    // Relay polarity is handled after the control config, and deliberately
+    // not through ControlConfig: flipping it changes what every output
+    // physically means, so it is a safety event rather than a setting.
+    // Null (or absent) means "keep using the board's compiled-in default".
+    if (doc["coolingRelayActiveLow"].is<bool>()) {
+        bool requested = doc["coolingRelayActiveLow"];
+        if (requested != coolingRelayActiveLow) {
+            coolingRelayActiveLow = requested;
+            configStore.saveCoolingRelayActiveLow(requested);
+
+            // Under the previous (wrong) polarity the compressor may have
+            // been running while the loop believed it was idle. Force IDLE
+            // and arm min-off before writing the pin, so the corrected
+            // output starts from a known-off state and cannot be
+            // re-energized until the compressor has had time to equalize.
+            controlLoop.forceIdleAndArmMinOff(millis());
+            applyRelayOutput(ControlOutput::IDLE);
+            Serial.printf("[config] cooling relay polarity changed to active-%s; forced idle\n",
+                          requested ? "low" : "high");
+        }
+    }
+
     Serial.printf(
         "[config] applied: setpoint=%.2f hysteresis=%.2f mode=%s minOn=%lu minOff=%lu "
-        "controlSensor=%s\n",
+        "controlSensor=%s offset=%.2f\n",
         next.setpointC, next.hysteresisC, controlModeToString(next.mode),
         static_cast<unsigned long>(next.minOnTimeMs),
         static_cast<unsigned long>(next.minOffTimeMs),
-        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)");
+        controlSensorAddressHex[0] != '\0' ? controlSensorAddressHex : "(none, using first sensor)",
+        next.controlSensorOffsetC);
 }
 
 // Blocking (see OtaUpdater doc comment) — the watchdog can't be fed from
@@ -215,7 +260,7 @@ float selectControlTemperature(const SensorSample* samples, size_t count) {
 // Only cooling exists on a kegerator — no heating relay to drive.
 void applyRelayOutput(ControlOutput output) {
     bool coolingOn = (output == ControlOutput::COOLING);
-    digitalWrite(COOLING_RELAY_PIN, coolingOn == RELAY_ACTIVE_LOW ? LOW : HIGH);
+    digitalWrite(COOLING_RELAY_PIN, coolingOn == coolingRelayActiveLow ? LOW : HIGH);
 }
 
 void connectWiFi() {
@@ -296,9 +341,15 @@ void setup() {
     esp_task_wdt_add(nullptr);
 
     pinMode(COOLING_RELAY_PIN, OUTPUT);
+
+    // NVS is opened, and the persisted relay polarity restored, BEFORE the
+    // first output write — otherwise that write would use the compiled-in
+    // default and could briefly energize the compressor on every boot of a
+    // device whose polarity has been corrected.
+    configStore.begin();
+    coolingRelayActiveLow = configStore.loadCoolingRelayActiveLow(RELAY_ACTIVE_LOW);
     applyRelayOutput(ControlOutput::IDLE); // safe default before any control decision has run
 
-    configStore.begin();
     ControlConfig config = configStore.load();
     config.heatingEnabled = false; // no heating hardware on a kegerator, regardless of stored config
     controlLoop.setConfig(config);

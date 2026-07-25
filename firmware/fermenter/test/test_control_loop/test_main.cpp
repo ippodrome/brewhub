@@ -334,6 +334,141 @@ void test_switching_modes_resets_pid_integral_state(void) {
     TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 2000));
 }
 
+// --- Control sensor calibration offset -------------------------------------
+// The offset shifts what the loop *believes* the temperature is, so the whole
+// deadband moves with it. A sensor reading 1.0 too low (offset +1.0) must make
+// the loop cool 1.0 earlier in raw terms, otherwise the chamber sits 1.0 warm
+// while the UI insists it's on setpoint.
+
+void test_offset_shifts_the_deadband(void) {
+    ControlConfig cfg; // setpoint 20, hysteresis 0.5, cooling only
+    cfg.controlSensorOffsetC = 1.0f;
+    ControlLoop loop(cfg);
+
+    // Raw 20.4 would be inside the deadband uncalibrated; calibrated it's
+    // 21.4, above setpoint+hysteresis, so cooling must engage.
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(20.4f, 0));
+}
+
+void test_negative_offset_shifts_the_deadband_the_other_way(void) {
+    ControlConfig cfg;
+    cfg.controlSensorOffsetC = -1.0f;
+    ControlLoop loop(cfg);
+
+    // Raw 20.9 is above the uncalibrated high edge (20.5), but calibrated
+    // it's 19.9 — inside the deadband, so no cooling.
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.9f, 0));
+}
+
+void test_zero_offset_is_identical_to_no_offset(void) {
+    ControlConfig cfg;
+    cfg.controlSensorOffsetC = 0.0f;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.4f, 0));
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(20.6f, 1000));
+}
+
+void test_offset_does_not_rescue_a_faulted_reading(void) {
+    // A disconnected DS18B20 reads -127. Even with the largest offset the
+    // backend will ever send, that must stay a fault and never be treated as
+    // a real temperature that happens to be in range.
+    ControlConfig cfg;
+    cfg.controlSensorOffsetC = 10.0f;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(-127.0f, 0));
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(nan_temp(), 1000));
+}
+
+void test_offset_applies_in_pid_mode_too(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 20.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 10000;
+    cfg.heatingEnabled = true;
+    cfg.coolingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    cfg.controlSensorOffsetC = 5.0f;
+    ControlLoop loop(cfg);
+
+    // Raw 18.0 reads below setpoint (would call for heat), but calibrated to
+    // 23.0 it's above setpoint, so the PID must demand cooling instead.
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(18.0f, 0));
+}
+
+// --- forceIdleAndArmMinOff (relay polarity change) -------------------------
+// Called when relay polarity is reconfigured, which changes what the outputs
+// physically mean. The compressor may have been running under the old, wrong
+// interpretation while this loop believed it was idle — so min-off has to
+// start from now regardless of what the loop thought its output was.
+
+void test_force_idle_drives_output_to_idle(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(25.0f, 0));
+    loop.forceIdleAndArmMinOff(1000);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.currentOutput());
+}
+
+void test_force_idle_arms_min_off_even_when_already_idle(void) {
+    // The case that matters: under a wrong polarity the compressor ran while
+    // the loop sat IDLE, so nothing ever armed the min-off timer. After
+    // correcting polarity, cooling must still be held off.
+    ControlConfig cfg;
+    cfg.minOffTimeMs = 60000;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 0)); // in deadband, never cooled
+    loop.forceIdleAndArmMinOff(1000);
+
+    // Demand cooling immediately: must be refused until min-off has elapsed.
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(25.0f, 2000));
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(25.0f, 60000));
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(25.0f, 61001));
+}
+
+void test_force_idle_arms_min_off_for_heating_too(void) {
+    ControlConfig cfg;
+    cfg.heatingEnabled = true;
+    cfg.minOffTimeMs = 60000;
+    ControlLoop loop(cfg);
+
+    loop.forceIdleAndArmMinOff(1000);
+
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(10.0f, 2000));
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, loop.update(10.0f, 61001));
+}
+
+void test_force_idle_resets_pid_window(void) {
+    // A duty cycle computed under the old output interpretation is
+    // meaningless; the next window must be recomputed from current
+    // conditions rather than finishing the old one.
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 20.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 10000;
+    cfg.coolingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.update(30.0f, 0));
+
+    loop.forceIdleAndArmMinOff(1000);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.currentOutput());
+
+    // Temperature is now at setpoint, so the fresh window must demand
+    // nothing — proof it recomputed rather than resuming the old duty cycle.
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.update(20.0f, 2000));
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_new_controlloop_uses_safe_default_config);
@@ -362,5 +497,14 @@ int main(int argc, char **argv) {
     RUN_TEST(test_pid_mode_respects_min_on_time_before_leaving_heating);
     RUN_TEST(test_pid_mode_holds_last_output_on_invalid_reading);
     RUN_TEST(test_switching_modes_resets_pid_integral_state);
+    RUN_TEST(test_offset_shifts_the_deadband);
+    RUN_TEST(test_negative_offset_shifts_the_deadband_the_other_way);
+    RUN_TEST(test_zero_offset_is_identical_to_no_offset);
+    RUN_TEST(test_offset_does_not_rescue_a_faulted_reading);
+    RUN_TEST(test_offset_applies_in_pid_mode_too);
+    RUN_TEST(test_force_idle_drives_output_to_idle);
+    RUN_TEST(test_force_idle_arms_min_off_even_when_already_idle);
+    RUN_TEST(test_force_idle_arms_min_off_for_heating_too);
+    RUN_TEST(test_force_idle_resets_pid_window);
     return UNITY_END();
 }

@@ -178,6 +178,36 @@ describe("DeviceConfigSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("defaults controlSensorOffsetC to 0 when absent (a pre-calibration config is uncalibrated, not invalid)", () => {
+    const result = DeviceConfigSchema.safeParse({
+      setpointC: 18.5,
+      hysteresisC: 0.5,
+      mode: "thermostat",
+      minOnTimeMs: 60000,
+      minOffTimeMs: 60000,
+      pidGains: { kp: 0, ki: 0, kd: 0 },
+      pidWindowMs: 300000,
+      controlSensorAddress: null,
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.controlSensorOffsetC).toBe(0);
+  });
+
+  it("keeps an explicit controlSensorOffsetC", () => {
+    const result = DeviceConfigSchema.safeParse({
+      setpointC: 18.5,
+      hysteresisC: 0.5,
+      mode: "thermostat",
+      minOnTimeMs: 60000,
+      minOffTimeMs: 60000,
+      pidGains: { kp: 0, ki: 0, kd: 0 },
+      pidWindowMs: 300000,
+      controlSensorAddress: null,
+      controlSensorOffsetC: -0.4,
+    });
+    expect(result.success && result.data.controlSensorOffsetC).toBe(-0.4);
+  });
+
   it("omits tareRequestId without failing (optional, inert for non-scale devices)", () => {
     const result = DeviceConfigSchema.safeParse({
       setpointC: 18.5,
@@ -460,12 +490,34 @@ describe("DeviceSensorSchema", () => {
       lastSeenAt: null,
     });
     expect(result.success).toBe(true);
+    expect(result.success && result.data.offsetC).toBe(0); // uncalibrated by default
+  });
+
+  it("keeps an explicit calibration offset", () => {
+    const result = DeviceSensorSchema.safeParse({
+      deviceId: "fermenter-01",
+      address: "28FF641F0417033A",
+      label: "Beer",
+      isControlSensor: true,
+      lastSeenAt: 1700000000000,
+      offsetC: -0.4,
+    });
+    expect(result.success && result.data.offsetC).toBe(-0.4);
   });
 });
 
 describe("UpdateDeviceSensorRequestSchema", () => {
   it("accepts a label-only update", () => {
     expect(UpdateDeviceSensorRequestSchema.safeParse({ label: "Fridge" }).success).toBe(true);
+  });
+
+  it("accepts an offset-only update", () => {
+    expect(UpdateDeviceSensorRequestSchema.safeParse({ offsetC: -0.4 }).success).toBe(true);
+  });
+
+  it("rejects an offset beyond the plausible band (a broken sensor, not a miscalibrated one)", () => {
+    expect(UpdateDeviceSensorRequestSchema.safeParse({ offsetC: 25 }).success).toBe(false);
+    expect(UpdateDeviceSensorRequestSchema.safeParse({ offsetC: -25 }).success).toBe(false);
   });
 
   it("accepts an empty update", () => {
