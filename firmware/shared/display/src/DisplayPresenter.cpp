@@ -173,16 +173,20 @@ void DisplayPresenter::update(const DisplayModel& model) {
 
     if (model.wifiConnected != text_.wifiConnected ||
         model.mqttConnected != text_.mqttConnected) {
-        bool mqttChanged = model.mqttConnected != text_.mqttConnected;
         text_.wifiConnected = model.wifiConnected;
         text_.mqttConnected = model.mqttConnected;
         setDirty(DisplayField::CONNECTION);
-        // Losing the broker does not stop the control loop. The screen has
-        // to say so outright, otherwise a red indicator reads as "the
-        // fermenter is dead" when it is still regulating perfectly well.
-        if (mqttChanged) {
-            setDirty(DisplayField::OFFLINE_NOTICE);
-        }
+    }
+
+    // Losing the broker does not stop the control loop. The screen has to
+    // say so outright, otherwise a red indicator reads as "the fermenter is
+    // dead" when it is still regulating perfectly well. The dirty flag
+    // follows the formatted string itself rather than a separate "did mqtt
+    // change" comparison, so this stays correct even if something else ever
+    // writes to offlineNotice.
+    if (assign(text_.offlineNotice, sizeof(text_.offlineNotice),
+               model.mqttConnected ? "" : "offline - still controlling")) {
+        setDirty(DisplayField::OFFLINE_NOTICE);
     }
 
     char sensorRow[sizeof(text_.sensors)];

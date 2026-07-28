@@ -21,21 +21,21 @@ constexpr int16_t kConnH = 18;
 constexpr int16_t kHeaderRuleY = 26;
 
 constexpr int16_t kTempX = 16;
-constexpr int16_t kTempY = 40;
+constexpr int16_t kTempY = 32;
 constexpr int16_t kTempW = 216;
 constexpr int16_t kTempH = 52;
 constexpr int16_t kUnitX = 240;
-constexpr int16_t kUnitY = 60;
+constexpr int16_t kUnitY = 52;
 
 constexpr int16_t kSetpointX = 20;
-constexpr int16_t kSetpointY = 100;
+constexpr int16_t kSetpointY = 88;
 constexpr int16_t kSetpointW = 260;
-constexpr int16_t kSetpointH = 28;
+constexpr int16_t kSetpointH = 26;
 
 constexpr int16_t kOfflineX = 20;
-constexpr int16_t kOfflineY = 114;
+constexpr int16_t kOfflineY = 116;
 constexpr int16_t kOfflineW = 296;
-constexpr int16_t kOfflineH = 18;
+constexpr int16_t kOfflineH = 16;
 
 constexpr int16_t kBandY = 136;
 constexpr int16_t kBandH = 44;
@@ -47,7 +47,7 @@ constexpr int16_t kModeY = 152;
 constexpr int16_t kFooterRuleY = 190;
 
 constexpr int16_t kSensorsX = 4;
-constexpr int16_t kSensorsY = 202;
+constexpr int16_t kSensorsY = 200;
 constexpr int16_t kSensorsW = 312;
 constexpr int16_t kSensorsH = 20;
 
@@ -121,10 +121,8 @@ void TftDisplay::render(DisplayPresenter& presenter) {
 
     if (presenter.isDirty(DisplayField::OFFLINE_NOTICE)) {
         tft_.fillRect(kOfflineX, kOfflineY, kOfflineW, kOfflineH, TFT_BLACK);
-        if (!text.mqttConnected) {
-            tft_.setTextColor(TFT_ORANGE, TFT_BLACK);
-            tft_.drawString("offline - still controlling", kOfflineX, kOfflineY, 2);
-        }
+        tft_.setTextColor(TFT_ORANGE, TFT_BLACK);
+        tft_.drawString(text.offlineNotice, kOfflineX, kOfflineY, 2);
     }
 
     if (presenter.isDirty(DisplayField::OUTPUT_BAND)) {

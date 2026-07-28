@@ -29,6 +29,7 @@ struct DisplayText {
     char output[12];       // "COOLING" / "HEATING" / "IDLE"
     char mode[20];         // "mode: thermostat"
     char sensors[64];      // "A1B2 19.1  C3D4 21.7"
+    char offlineNotice[32]; // "offline - still controlling" or "" when connected
 
     bool wifiConnected;
     bool mqttConnected;

@@ -137,6 +137,20 @@ void test_wifi_drop_alone_does_not_dirty_the_offline_notice(void) {
     TEST_ASSERT_FALSE(p.isDirty(DisplayField::OFFLINE_NOTICE));
 }
 
+void test_offline_notice_is_empty_when_connected(void) {
+    DisplayPresenter p;
+    p.update(makeModel()); // mqttConnected = true
+    TEST_ASSERT_EQUAL_STRING("", p.text().offlineNotice);
+}
+
+void test_offline_notice_shows_message_when_disconnected(void) {
+    DisplayPresenter p;
+    DisplayModel m = makeModel();
+    m.mqttConnected = false;
+    p.update(m);
+    TEST_ASSERT_EQUAL_STRING("offline - still controlling", p.text().offlineNotice);
+}
+
 void test_sub_decimal_change_does_not_dirty_the_temperature(void) {
     DisplayPresenter p;
     DisplayModel m = makeModel();
@@ -392,6 +406,8 @@ int main(int argc, char** argv) {
     RUN_TEST(test_mqtt_drop_leaves_the_temperature_alone);
     RUN_TEST(test_mqtt_drop_dirties_the_offline_notice);
     RUN_TEST(test_wifi_drop_alone_does_not_dirty_the_offline_notice);
+    RUN_TEST(test_offline_notice_is_empty_when_connected);
+    RUN_TEST(test_offline_notice_shows_message_when_disconnected);
     RUN_TEST(test_output_change_dirties_the_band);
     RUN_TEST(test_mode_change_dirties_the_band);
     RUN_TEST(test_every_output_maps_to_its_label);
