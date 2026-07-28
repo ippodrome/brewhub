@@ -85,12 +85,25 @@ void shortAddress(const char* hex, char* out, size_t capacity) {
 void buildSensorRow(const DisplayModel& model, char* out, size_t capacity) {
     out[0] = '\0';
 
+    // Mirrors main.cpp's selectControlTemperature exactly: a designated
+    // address only takes effect if it actually matches a discovered sensor.
+    // If it is unset, or set but unmatched (e.g. that probe was unplugged),
+    // ControlLoop falls back to controlling on samples[0] — so the row must
+    // fall back to omitting index 0 in both of those cases too, or the big
+    // readout and the bottom row show the same temperature twice.
+    bool designatedAddressMatchesASensor = false;
+    if (model.controlSensorAddressHex[0] != '\0') {
+        for (size_t i = 0; i < model.sensorCount; i++) {
+            if (caseInsensitiveEquals(model.sensors[i].addressHex, model.controlSensorAddressHex)) {
+                designatedAddressMatchesASensor = true;
+                break;
+            }
+        }
+    }
+
     size_t written = 0;
     for (size_t i = 0; i < model.sensorCount && written < kMaxSecondarySensors; i++) {
-        // Skip whichever sensor the control loop is regulating on. With no
-        // designated address it falls back to the first discovered sensor,
-        // so this mirrors that fallback exactly.
-        if (model.controlSensorAddressHex[0] != '\0') {
+        if (designatedAddressMatchesASensor) {
             if (caseInsensitiveEquals(model.sensors[i].addressHex, model.controlSensorAddressHex)) {
                 continue;
             }

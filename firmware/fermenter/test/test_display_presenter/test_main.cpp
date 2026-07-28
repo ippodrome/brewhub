@@ -308,6 +308,20 @@ void test_sensor_row_falls_back_to_omitting_the_first_sensor(void) {
     TEST_ASSERT_EQUAL_STRING("5566 21.7", p.text().sensors);
 }
 
+void test_sensor_row_omits_first_sensor_when_designated_address_is_unknown(void) {
+    // Designated address matches nothing discovered, so ControlLoop falls
+    // back to samples[0] — the row must omit index 0 or the big readout and
+    // the bottom row show the same temperature.
+    DisplayModel m = makeModel();
+    addSensor(m, "28FF641F0417033A", 18.4f);
+    addSensor(m, "28AA112233445566", 21.7f);
+    std::strcpy(m.controlSensorAddressHex, "28CC000000000000");
+
+    DisplayPresenter p;
+    p.update(m);
+    TEST_ASSERT_EQUAL_STRING("5566 21.7", p.text().sensors);
+}
+
 void test_sensor_row_joins_multiple_sensors(void) {
     DisplayModel m = makeModel();
     addSensor(m, "28FF641F0417033A", 18.4f);
@@ -387,6 +401,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_sensor_row_omits_the_designated_control_sensor);
     RUN_TEST(test_sensor_row_uses_the_last_four_hex_characters);
     RUN_TEST(test_sensor_row_falls_back_to_omitting_the_first_sensor);
+    RUN_TEST(test_sensor_row_omits_first_sensor_when_designated_address_is_unknown);
     RUN_TEST(test_sensor_row_joins_multiple_sensors);
     RUN_TEST(test_sensor_row_renders_a_faulted_sensor_as_placeholder);
     RUN_TEST(test_sensor_row_caps_at_three_entries);
