@@ -1,0 +1,7 @@
+{
+  "name": "unibrew-display",
+  "version": "0.1.0",
+  "description": "Hardware-free display model and presenter for UniBrew devices — formatting, state labels and dirty tracking, with no Arduino dependency so it runs under the native test environment. The TFT_eSPI drawing code lives in unibrew-hal-display.",
+  "frameworks": [],
+  "platforms": ["*"]
+}
