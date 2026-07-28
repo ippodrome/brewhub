@@ -9,6 +9,9 @@
 #include "ConfigStore.h"
 #include "MqttClientWrapper.h"
 #include "OtaUpdater.h"
+#include "DisplayModel.h"
+#include "DisplayPresenter.h"
+#include "TftDisplay.h"
 #include "pins.h"
 #include "secrets.h"
 
@@ -22,11 +25,19 @@ using unibrew::OtaUpdater;
 using unibrew::SensorManager;
 using unibrew::SensorSample;
 using unibrew::kSensorAddressHexLength;
+using unibrew::DisplayModel;
+using unibrew::DisplayPresenter;
+using unibrew::DisplayScreen;
+using unibrew::TftDisplay;
 
 namespace {
 
 constexpr uint32_t kTelemetryIntervalMs = 2000;
 constexpr uint32_t kStatusIntervalMs = 30000;
+// The screen ticks faster than telemetry so WiFi/MQTT indicators react
+// promptly, but temperatures only change on the telemetry pass — the
+// OneWire bus is not read any more often than before.
+constexpr uint32_t kDisplayIntervalMs = 1000;
 constexpr uint32_t kWatchdogTimeoutS = 30;
 constexpr float kMinPlausibleC = -50.0f;
 constexpr float kMaxPlausibleC = 150.0f;
@@ -43,9 +54,13 @@ SensorManager sensorManager;
 ConfigStore configStore;
 MqttClientWrapper mqttClient;
 OtaUpdater otaUpdater;
+DisplayModel displayModel;
+DisplayPresenter displayPresenter;
+TftDisplay display;
 
 uint32_t lastTelemetryMs = 0;
 uint32_t lastStatusMs = 0;
+uint32_t lastDisplayMs = 0;
 
 // Empty = no control sensor designated yet (or the backend hasn't told us) —
 // selectControlTemperature() falls back to the first discovered sensor.
@@ -223,6 +238,11 @@ void onOtaMessage(const uint8_t* payload, unsigned int length) {
     Serial.printf("[ota] update requested: version=%s url=%s\n",
                   doc["version"].is<const char*>() ? doc["version"].as<const char*>() : "?", url);
 
+    // Drawn before begin(), which blocks with the watchdog disabled and
+    // reboots on success — nothing after it runs.
+    displayModel.screen = DisplayScreen::OTA;
+    display.showOta();
+
     esp_task_wdt_delete(nullptr);
     otaUpdater.begin(url, md5);
     esp_task_wdt_add(nullptr); // only reached on failure
@@ -279,6 +299,37 @@ void connectWiFi() {
     }
 }
 
+// Copies the freshly read samples into the display model, converting each
+// raw address to hex at this boundary. The display library deliberately
+// does not include SensorManager.h — that header pulls in OneWire and
+// DallasTemperature, which would make it unbuildable natively.
+void refreshDisplaySensors(const SensorSample* samples, size_t count, float controlTemperatureC) {
+    size_t limit = count < unibrew::kDisplayMaxSensors ? count : unibrew::kDisplayMaxSensors;
+    for (size_t i = 0; i < limit; i++) {
+        unibrew::formatSensorAddress(samples[i].address,
+                                     displayModel.sensors[i].addressHex,
+                                     sizeof(displayModel.sensors[i].addressHex));
+        displayModel.sensors[i].temperatureC = samples[i].temperatureC;
+    }
+    displayModel.sensorCount = limit;
+    displayModel.controlTemperatureC = controlTemperatureC;
+}
+
+// Fields that can change without a sensor read: connection state and
+// anything the backend may have pushed since the last tick.
+void refreshDisplayState() {
+    const ControlConfig& config = controlLoop.config();
+    displayModel.setpointC = config.setpointC;
+    displayModel.mode = config.mode;
+    displayModel.output = controlLoop.currentOutput();
+    displayModel.wifiConnected = (WiFi.status() == WL_CONNECTED);
+    displayModel.mqttConnected = mqttClient.connected();
+    strncpy(displayModel.controlSensorAddressHex,
+            controlSensorAddressHex,
+            sizeof(displayModel.controlSensorAddressHex) - 1);
+    displayModel.controlSensorAddressHex[sizeof(displayModel.controlSensorAddressHex) - 1] = '\0';
+}
+
 void publishTelemetry(const SensorSample* samples, size_t count) {
     JsonDocument doc;
     doc["deviceId"] = DEVICE_ID;
@@ -323,6 +374,13 @@ void setup() {
     Serial.begin(115200);
     delay(200);
     Serial.println("\n[boot] UniBrew fermenter firmware starting");
+
+    display.begin();
+    displayModel.screen = DisplayScreen::STATUS;
+    displayModel.deviceId = DEVICE_ID;
+    refreshDisplayState();
+    displayPresenter.update(displayModel);
+    display.render(displayPresenter);
 
     esp_task_wdt_init(kWatchdogTimeoutS, true);
     esp_task_wdt_add(nullptr);
@@ -369,11 +427,21 @@ void loop() {
         float controlTemperatureC = selectControlTemperature(samples, count);
         ControlOutput output = controlLoop.update(controlTemperatureC, now);
         applyRelayOutput(output);
+        refreshDisplaySensors(samples, count, controlTemperatureC);
         publishTelemetry(samples, count);
     }
 
     if (now - lastStatusMs >= kStatusIntervalMs) {
         lastStatusMs = now;
         publishStatus();
+    }
+
+    if (now - lastDisplayMs >= kDisplayIntervalMs) {
+        lastDisplayMs = now;
+        if (displayModel.screen == DisplayScreen::STATUS) {
+            refreshDisplayState();
+            displayPresenter.update(displayModel);
+            display.render(displayPresenter);
+        }
     }
 }
