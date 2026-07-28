@@ -53,6 +53,66 @@ const char* outputLabel(ControlOutput output) {
     }
 }
 
+// How many non-control sensors fit on the bottom row at font 2 without
+// running past 320 px.
+constexpr size_t kMaxSecondarySensors = 3;
+constexpr size_t kShortAddressChars = 4;
+
+// SensorAddress.h's sensorAddressMatches() compares the raw 8 address bytes
+// against a hex string, but DisplaySensor only stores the already-formatted
+// hex string (no raw bytes survive to the display model) — so that helper
+// isn't reusable here, and this small string comparison duplicates its
+// case-insensitivity instead.
+bool caseInsensitiveEquals(const char* a, const char* b) {
+    for (size_t i = 0;; i++) {
+        unsigned char ca = static_cast<unsigned char>(a[i]);
+        unsigned char cb = static_cast<unsigned char>(b[i]);
+        if (ca >= 'a' && ca <= 'z') ca = static_cast<unsigned char>(ca - 'a' + 'A');
+        if (cb >= 'a' && cb <= 'z') cb = static_cast<unsigned char>(cb - 'a' + 'A');
+        if (ca != cb) return false;
+        if (ca == '\0') return true;
+    }
+}
+
+// Writes the trailing kShortAddressChars of hex into out, or the whole
+// string if it is shorter.
+void shortAddress(const char* hex, char* out, size_t capacity) {
+    size_t len = std::strlen(hex);
+    const char* start = len > kShortAddressChars ? hex + (len - kShortAddressChars) : hex;
+    std::snprintf(out, capacity, "%s", start);
+}
+
+void buildSensorRow(const DisplayModel& model, char* out, size_t capacity) {
+    out[0] = '\0';
+
+    size_t written = 0;
+    for (size_t i = 0; i < model.sensorCount && written < kMaxSecondarySensors; i++) {
+        // Skip whichever sensor the control loop is regulating on. With no
+        // designated address it falls back to the first discovered sensor,
+        // so this mirrors that fallback exactly.
+        if (model.controlSensorAddressHex[0] != '\0') {
+            if (caseInsensitiveEquals(model.sensors[i].addressHex, model.controlSensorAddressHex)) {
+                continue;
+            }
+        } else if (i == 0) {
+            continue;
+        }
+
+        char shortHex[kShortAddressChars + 1];
+        shortAddress(model.sensors[i].addressHex, shortHex, sizeof(shortHex));
+
+        char temp[8];
+        formatTemperature(model.sensors[i].temperatureC, temp, sizeof(temp));
+
+        char entry[24];
+        std::snprintf(entry, sizeof(entry), "%s%s %s", written > 0 ? "  " : "", shortHex, temp);
+
+        size_t remaining = capacity - std::strlen(out) - 1;
+        std::strncat(out, entry, remaining);
+        written++;
+    }
+}
+
 } // namespace
 
 void DisplayPresenter::setDirty(DisplayField field) {
@@ -110,6 +170,12 @@ void DisplayPresenter::update(const DisplayModel& model) {
         if (mqttChanged) {
             setDirty(DisplayField::OFFLINE_NOTICE);
         }
+    }
+
+    char sensorRow[sizeof(text_.sensors)];
+    buildSensorRow(model, sensorRow, sizeof(sensorRow));
+    if (assign(text_.sensors, sizeof(text_.sensors), sensorRow)) {
+        setDirty(DisplayField::SENSORS);
     }
 
     text_.screen = model.screen;
