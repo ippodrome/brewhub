@@ -40,6 +40,12 @@ services:
         condition: service_healthy
     ports:
       - "8443:8443"
+    environment:
+      # The host you actually reach the app on — an IP or a hostname — so
+      # Caddy's internal CA issues a certificate that matches it, and so the
+      # handshake still works when a browser sends no SNI (which is what
+      # happens over a bare IP). See caddy/Caddyfile.
+      BREWHUB_HOST: ${BREWHUB_HOST:-localhost}
     # Lets Unraid's Docker tab (or any Docker UI reading standard labels)
     # show a WebUI button/link straight to the app, and group it under a
     # sensible category — works for compose-managed containers exactly the

@@ -1,7 +1,21 @@
-:8443 {
-	tls internal {
-		on_demand
-	}
+# BREWHUB_HOST is the host you actually reach this box on — an IP like
+# `192.168.0.10`, or a hostname. Caddy's internal CA issues a certificate for
+# it up front (as an IP SAN when it's an address), so once that CA is trusted
+# the browser stops complaining. Defaults to `localhost` when unset.
+#
+# Why `default_sni` is required, and why the old `tls internal { on_demand }`
+# could never work over IP: on-demand issuance picks the certificate from the
+# TLS handshake's SNI, but browsers do not send SNI when connecting to a bare
+# IP address (RFC 6066 excludes IP literals). Without SNI, Caddy has no name
+# to match the connection against and aborts the handshake outright — so
+# trusting the CA alone never fixed it. `default_sni` supplies the name Caddy
+# should assume when the client offers none. See DECISIONS.md ADR-024.
+{
+	default_sni {$BREWHUB_HOST:localhost}
+}
+
+https://{$BREWHUB_HOST:localhost}:8443 {
+	tls internal
 
 	handle /api/* {
 		reverse_proxy backend:3000
