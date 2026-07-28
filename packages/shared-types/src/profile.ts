@@ -74,3 +74,47 @@ export const CreateProfileRequestSchema = z.discriminatedUnion("triggerType", [
   CreateGravityProfileRequestSchema,
 ]);
 export type CreateProfileRequest = z.infer<typeof CreateProfileRequestSchema>;
+
+/**
+ * Bumped only when the shape below changes incompatibly. Import checks it and
+ * refuses anything it doesn't recognise, so a file written by a future
+ * version fails loudly instead of being half-understood.
+ */
+export const PROFILE_EXPORT_FORMAT_VERSION = 1;
+
+/**
+ * The portable form of a profile: a name, a trigger type and its steps —
+ * deliberately the same shape as CreateProfileRequest.
+ *
+ * id, deviceId and createdAt are *not* part of it. Those are facts about one
+ * row in one installation; a profile like "Ale — ferment cool, then D-rest"
+ * is a recipe that should move between devices and between installs. Reusing
+ * CreateProfileRequestSchema also means Zod strips those fields if someone
+ * pastes a raw profile straight out of the API, so hand-edited files work
+ * without having to know which fields to remove.
+ */
+export const ProfileExportSchema = z.object({
+  formatVersion: z.literal(PROFILE_EXPORT_FORMAT_VERSION),
+  /** Informational only — import ignores it. Optional so hand-written files don't need it. */
+  exportedAt: z.number().int().optional(),
+  profiles: z.array(CreateProfileRequestSchema).min(1),
+});
+export type ProfileExport = z.infer<typeof ProfileExportSchema>;
+
+/**
+ * Import is additive and never overwrites: a clashing name is suffixed rather
+ * than replacing the existing profile, and the rename is reported so the user
+ * can see it happened rather than wondering why there are two similar names.
+ */
+export const ImportedProfileSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  /** Set when the requested name was already taken on this device. */
+  renamedFrom: z.string().nullable(),
+});
+export type ImportedProfile = z.infer<typeof ImportedProfileSchema>;
+
+export const ImportProfilesResultSchema = z.object({
+  imported: z.array(ImportedProfileSchema),
+});
+export type ImportProfilesResult = z.infer<typeof ImportProfilesResultSchema>;

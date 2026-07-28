@@ -1,7 +1,18 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Device, GravityProfileStep, TimeProfileStep } from "@brewhub/shared-types";
-import { createProfile, deleteProfile, listProfiles } from "../api/profiles";
+import type {
+  Device,
+  GravityProfileStep,
+  ImportProfilesResult,
+  TimeProfileStep,
+} from "@brewhub/shared-types";
+import {
+  createProfile,
+  deleteProfile,
+  downloadProfileExport,
+  importProfiles,
+  listProfiles,
+} from "../api/profiles";
 import { listHydrometers } from "../api/hydrometers";
 import { updateDeviceConfig } from "../api/devices";
 
@@ -31,6 +42,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
   const [triggerType, setTriggerType] = useState<"time" | "gravity">("time");
   const [timeSteps, setTimeSteps] = useState<TimeProfileStep[]>(EMPTY_TIME_STEPS);
   const [gravitySteps, setGravitySteps] = useState<GravityProfileStep[]>(EMPTY_GRAVITY_STEPS);
+  const [importResult, setImportResult] = useState<ImportProfilesResult | null>(null);
   const queryClient = useQueryClient();
 
   const profilesQuery = useQuery({
@@ -63,6 +75,20 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
     mutationFn: (activeProfileId: number | null) =>
       updateDeviceConfig(device.id, { activeProfileId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
+  });
+
+  // undefined = every profile on the device; a number = just that one.
+  const exportMutation = useMutation({
+    mutationFn: (profileId: number | undefined) => downloadProfileExport(device.id, profileId),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (file: File) => importProfiles(device.id, file),
+    onSuccess: (result) => {
+      setImportResult(result);
+      queryClient.invalidateQueries({ queryKey: ["profiles", device.id] });
+    },
+    onError: () => setImportResult(null),
   });
 
   function updateTimeStep(index: number, patch: Partial<TimeProfileStep>): void {
@@ -133,6 +159,14 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   Activate
                 </button>
                 <button
+                  onClick={() => exportMutation.mutate(profile.id)}
+                  disabled={exportMutation.isPending}
+                  title="Download this profile as a file you can import on another device"
+                  className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                >
+                  Export
+                </button>
+                <button
                   onClick={() => deleteMutation.mutate(profile.id)}
                   disabled={deleteMutation.isPending}
                   className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
@@ -143,6 +177,62 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
             </li>
           ))}
         </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-3">
+        <button
+          onClick={() => exportMutation.mutate(undefined)}
+          disabled={exportMutation.isPending || !profilesQuery.data?.length}
+          className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-40"
+        >
+          Export all
+        </button>
+        <label className="cursor-pointer rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200">
+          {importMutation.isPending ? "Importing..." : "Import"}
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Reset so re-picking the same file fires change again.
+              e.target.value = "";
+              if (file) importMutation.mutate(file);
+            }}
+          />
+        </label>
+        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          Profiles are portable — export one to reuse it on another chamber, or share it.
+        </p>
+      </div>
+
+      {importResult && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+          <p>
+            Imported {importResult.imported.length}{" "}
+            {importResult.imported.length === 1 ? "profile" : "profiles"}.
+          </p>
+          {importResult.imported.some((p) => p.renamedFrom) && (
+            <p className="mt-0.5 opacity-80">
+              Renamed to avoid clashing with what's already here:{" "}
+              {importResult.imported
+                .filter((p) => p.renamedFrom)
+                .map((p) => `${p.renamedFrom} → ${p.name}`)
+                .join(", ")}
+              .
+            </p>
+          )}
+        </div>
+      )}
+      {importMutation.isError && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {importMutation.error instanceof Error && importMutation.error.message.includes("JSON")
+            ? "That file isn't valid JSON."
+            : "Could not import that file — it doesn't look like a BrewHub profile export."}
+        </p>
+      )}
+      {exportMutation.isError && (
+        <p className="text-xs text-red-600 dark:text-red-400">Could not export.</p>
       )}
 
       <button
