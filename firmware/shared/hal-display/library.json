@@ -1,0 +1,10 @@
+{
+  "name": "unibrew-hal-display",
+  "version": "0.1.0",
+  "description": "TFT_eSPI renderer for the UniBrew fermenter's ILI9341 status display. Contains no formatting or state logic — that lives in unibrew-display, which is hardware-free and natively tested.",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "bodmer/TFT_eSPI": "^2.5.43"
+  }
+}
