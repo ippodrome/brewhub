@@ -334,3 +334,23 @@ What's done now is exactly the subset that's useful regardless of which shape ge
 Devices still need Caddy's root CA installed once, since it is not a public CA. That CA lives in the `caddy-data` volume and survived the project rename, so it doesn't need redoing after that migration. A real publicly-trusted certificate remains the better answer if a domain ever exists — verified during this work that NginxProxyManager on the deployment host has no certificates configured and only a `.local` proxy host, so that option wasn't available.
 
 **Verification**: `openssl s_client -noservername` (SNI deliberately suppressed, reproducing what a browser does over IP) returns a certificate carrying `X509v3 Subject Alternative Name: IP Address:192.168.0.10`, and validates against the extracted root with `Verify return code: 0 (ok)`. The app answers HTTP 200 over the same connection.
+
+## ADR-025: The fermenter's local display is read-only, and its logic is split hardware-free so it can be tested natively
+
+**Decision**: the fermenter gains an optional ILI9341 320×240 SPI display, wired to the `TFT` 2×5 box header on the "D32 Pro - TFT AIO" board. It shows status only — control temperature, setpoint, mode, heat/cool output, and WiFi/MQTT state — with no touch and no way to change configuration from the board. The implementation splits across two libraries mirroring the existing `control` / `hal-control` boundary: `shared/display` holds `DisplayModel` and `DisplayPresenter` with no Arduino dependency and runs under the `native` test environment, while `shared/hal-display` holds a `TftDisplay` TFT_eSPI wrapper containing no formatting or state logic. Full design in `docs/specs/2026-07-28-fermenter-tft-status-display-design.md`.
+
+**Context**: checking a fermentation run meant opening the BrewHub UI on a phone even when standing next to the chamber. The board already routes a display interface — the same GPIOs serve both the box header and the LoLin D32 Pro module's built-in TFT connector — so the hardware cost is a ribbon cable and a header.
+
+Read-only was chosen over touch control because the backend is the single source of truth for configuration. A setpoint editable from the board would need to publish upward and survive the next retained config push, which is a synchronisation problem worth far more than it buys for a screen whose purpose is answering "what is it doing right now" at a glance. Leaving touch out also leaves `T_CS`/IO12 unconnected, sidestepping that pin's role as an ESP32 strapping pin.
+
+The library split follows the same reasoning as ADR-020's separation of control logic from its HAL: display defects concentrate in *what* gets shown under edge conditions — `NaN` readings, zero discovered sensors, a dropped broker — not in the drawing calls. Behind a hardware-free boundary that logic is unit-testable, leaving only TFT_eSPI invocations untested.
+
+**Consequences**: non-control sensors are labelled by the last four hex characters of their address rather than a name. The firmware has never received sensor names — the config message carries only `controlSensorAddress` — and adding them would mean changes across the backend, `shared-types` and `onConfigMessage`. That is deliberately deferred; the layout accommodates names later without redesign.
+
+TFT_eSPI resolves its pin mapping from compile-time macros, so the pin numbers necessarily appear in both `pins.h` and `platformio.ini`'s `build_flags`. Those flags belong under `[env:fermenter-brewpi]` alone, since putting them in the shared `[env]` section would pull TFT_eSPI into the `native` build. `hal-display` carries `static_assert`s comparing the macros against `pins.h`, so drift between the two becomes a compile error instead of a display that never lights up.
+
+The real constraint is flash. `board_build.partitions = default.csv` allows roughly 1.2 MB per app slot and OTA needs two, so TFT_eSPI plus fonts eats into headroom that already exists for OTA's sake. Measuring this is the first implementation step rather than the last, because the fallback — changing the partition scheme — breaks OTA compatibility with already-flashed devices (the same pinning concern that made `default.csv` explicit in `platformio.ini` to begin with).
+
+Board-side, the header's pin 1 supplies 5 V rather than 3.3 V. Common red ILI9341 modules regulate onboard and tolerate it; 3.3 V-only variants do not, and must be fed from 3V3 with pin 1 left unconnected.
+
+This ADR covers the fermenter only. The kegerator, keg-scale and gravity-bridge boards get no display.
