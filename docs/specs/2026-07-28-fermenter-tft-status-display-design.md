@@ -148,7 +148,7 @@ during OTA.
 
 | State            | Behaviour                                                    |
 |------------------|--------------------------------------------------------------|
-| Boot             | "Starting" plus `FIRMWARE_VERSION`                           |
+| Boot             | No separate splash. `setup()` brings the status layout up before the blocking WiFi attempt, so those seconds show the real screen with red indicators and `--.-` — strictly more information than a splash, and one less state to maintain |
 | WiFi connecting  | WiFi indicator inactive; rest of screen renders normally     |
 | MQTT down        | MQTT indicator red, **plus explicit note that control is still running locally** |
 | Sensor fault     | `--.- °C` and a red marker when the control reading is `NaN` or no sensors were discovered — `ControlLoop` cannot regulate in this state |
