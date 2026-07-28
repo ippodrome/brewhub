@@ -39,10 +39,10 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
+    <div className="modal-backdrop fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6"
+        className="modal-panel w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6"
       >
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Add device</h2>
 

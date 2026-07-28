@@ -20,3 +20,112 @@ body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * Motion.
+ *
+ * BrewHub is a control panel, not a landing page — it gets opened to check a
+ * fermentation temperature, often on a phone, often in a cold garage. So the
+ * bar for adding motion here is high: anything seen dozens of times a day
+ * should feel instant, not animated. Live telemetry readouts in particular
+ * are deliberately left alone; they update every couple of seconds, and
+ * animating a number that changes that often would be actively worse.
+ *
+ * What's left is the motion that carries information rather than decoration:
+ * confirming a press, and not having panels appear out of nowhere.
+ */
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@layer base {
+  /*
+   * Press feedback on every button. Previously the app had exactly one
+   * `active:` state across 60 buttons, so a tap produced no acknowledgement
+   * at all until the network responded — worst on touch, where there's no
+   * hover state to fall back on either.
+   *
+   * Colour transitions are folded into the same declaration so the ~170
+   * hover states stop snapping. Only transform and opacity/colour are
+   * animated: they skip layout and paint.
+   */
+  button,
+  [role="button"] {
+    transition:
+      transform 160ms var(--ease-out),
+      color 150ms var(--ease-out),
+      background-color 150ms var(--ease-out),
+      border-color 150ms var(--ease-out);
+  }
+
+  button:active:not(:disabled),
+  [role="button"]:active {
+    transform: scale(0.97);
+  }
+
+  a,
+  input,
+  select,
+  textarea {
+    transition:
+      color 150ms var(--ease-out),
+      background-color 150ms var(--ease-out),
+      border-color 150ms var(--ease-out);
+  }
+}
+
+@layer components {
+  /*
+   * Modal entry. Nothing in the real world appears from nothing, so the panel
+   * starts at 0.96 rather than 0, paired with opacity. Origin stays centred:
+   * a modal isn't anchored to a trigger the way a popover is.
+   *
+   * @starting-style degrades to exactly the previous behaviour (appearing
+   * instantly) on browsers that don't support it — no JS mount flag needed.
+   */
+  .modal-backdrop {
+    opacity: 1;
+    transition: opacity 200ms var(--ease-out);
+  }
+
+  .modal-panel {
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+}
+
+@starting-style {
+  .modal-backdrop {
+    opacity: 0;
+  }
+
+  .modal-panel {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/*
+ * Reduced motion means fewer and gentler animations, not none — opacity and
+ * colour still aid comprehension, so only movement is removed.
+ */
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled),
+  [role="button"]:active {
+    transform: none;
+  }
+
+  .modal-panel {
+    transition: opacity 200ms var(--ease-out);
+  }
+
+  @starting-style {
+    .modal-panel {
+      transform: none;
+    }
+  }
+}
