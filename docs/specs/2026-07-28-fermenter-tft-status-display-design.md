@@ -190,16 +190,34 @@ comment, and `LED` (IO32) and `RESET` (IO33) are missing from it entirely.
 
 `shared/display` is added to the `native` environment's `lib_extra_dirs`.
 
+## Flash budget — measured, not estimated
+
+`board_build.partitions = default.csv` gives 1 310 720 bytes per app slot and
+OTA requires two, so the concern was whether TFT_eSPI leaves enough headroom.
+Measured with a throwaway spike (TFT_eSPI 2.5.43 linked in and actually
+exercised — `init`, `fillScreen`, `drawString`, `drawFloat`, `fillRect`,
+`drawLine` — so the linker could not strip the fonts and draw routines):
+
+| Build                       | Flash        | Share |
+|-----------------------------|--------------|-------|
+| Baseline (no display)       | 701 777 B    | 53.5% |
+| With TFT_eSPI + fonts       | 728 617 B    | 55.6% |
+| **Delta**                   | **+26 840 B**| +2.1 pp |
+
+RAM grew by 292 bytes. 582 103 bytes remain free in the app slot.
+
+**The partition scheme does not need to change**, and OTA compatibility with
+already-flashed devices is unaffected. Fonts enabled for the measurement were
+`LOAD_GLCD`, `LOAD_FONT2`, `LOAD_FONT4`, `LOAD_FONT6`, `LOAD_FONT7` and
+`LOAD_GFXFF` — a superset of what the layout needs, so the real cost will be
+at or below this figure.
+
+`SMOOTH_FONT` must stay **off**. Enabling it makes TFT_eSPI include
+`SPIFFS.h` (smooth fonts are loaded from a filesystem at runtime), which
+fails to compile here and would otherwise require a filesystem partition for
+no benefit — the built-in fonts cover the whole layout.
+
 ## Risks
-
-**Flash budget — the one real risk.** `board_build.partitions = default.csv`
-gives roughly 1.2 MB per app slot, and OTA requires two. TFT_eSPI plus fonts
-consumes a meaningful share of the remaining headroom. This must be measured
-as the first implementation step, not discovered at the end: if it does not
-fit, the partition scheme has to change, and **changing partitions breaks OTA
-compatibility with already-flashed devices**.
-
-Secondary:
 
 - Module VCC tolerance (see Hardware) — verify before first power-on.
 - SPI frequency: start conservative (27 MHz) and raise only if the refresh
