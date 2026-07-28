@@ -246,6 +246,17 @@ void onOtaMessage(const uint8_t* payload, unsigned int length) {
     esp_task_wdt_delete(nullptr);
     otaUpdater.begin(url, md5);
     esp_task_wdt_add(nullptr); // only reached on failure
+
+    // begin() only reaches ESP.restart() on success; every failure path
+    // (bad URL, GET failure, missing content-length, Update.begin failure,
+    // MD5/write mismatch) returns normally instead. Without handing the
+    // screen back here it would stay frozen on "Updating firmware" for the
+    // rest of the device's uptime while the control loop keeps running
+    // underneath — the exact "looks dead but isn't" failure mode the
+    // display exists to prevent (ADR-025). No markAllDirty() call is
+    // needed: showOta() cleared chromeDrawn_, so the next STATUS render
+    // redraws the chrome and force-dirties every field.
+    displayModel.screen = DisplayScreen::STATUS;
 }
 
 float selectControlTemperature(const SensorSample* samples, size_t count) {

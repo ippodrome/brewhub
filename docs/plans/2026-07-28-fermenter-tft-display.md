@@ -1,5 +1,7 @@
 # Fermenter TFT Status Display Implementation Plan
 
+> **Historical record:** this plan records intent as written before implementation. Several deviations were made deliberately during execution (including fix commits after the tasks below), so the embedded code samples — particularly the Task 5 layout constants and the Tasks 1–3 snippets — no longer match what shipped. The code and `DECISIONS.md` are authoritative for current behaviour; this document is not kept in sync with it.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Show fermenter status — control temperature, setpoint, mode, heat/cool output and connection state — on an ILI9341 320×240 display wired to the controller board's TFT box header, so a run can be checked without opening the BrewHub UI.

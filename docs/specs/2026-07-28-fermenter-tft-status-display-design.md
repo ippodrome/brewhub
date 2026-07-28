@@ -58,7 +58,7 @@ code in a `hal-*` library.
 
 - `DisplayModel` — plain struct holding everything that can appear on screen:
   control temperature, setpoint, mode, `ControlOutput`, WiFi/MQTT connected
-  flags, device id, firmware version, and the non-control sensor samples.
+  flags, device id, and the non-control sensor samples.
 - `DisplayPresenter` — turns a `DisplayModel` into formatted, ready-to-draw
   strings plus per-field dirty flags. Owns every edge case: `NaN`
   temperatures, zero discovered sensors, mode-to-label mapping, address
@@ -96,7 +96,7 @@ read any more often than today.
 | WiFi                 | `WiFi.status()`                          |
 | MQTT                 | `mqttClient.connected()`                 |
 | sensors              | `samples[]`, `count`                     |
-| device id, version   | `DEVICE_ID`, `FIRMWARE_VERSION`          |
+| device id            | `DEVICE_ID`                              |
 
 Cadence:
 
@@ -153,6 +153,7 @@ during OTA.
 | MQTT down        | MQTT indicator red, **plus explicit note that control is still running locally** |
 | Sensor fault     | `--.- °C` and a red marker when the control reading is `NaN` or no sensors were discovered — `ControlLoop` cannot regulate in this state |
 | OTA in progress  | Full-screen "Updating firmware — do not power off"           |
+| OTA failed       | Screen returns to the status layout. `OtaUpdater::begin()` reboots only on success; every failure path (bad URL, GET failure, missing content-length, `Update.begin` failure, MD5/write mismatch) returns normally, so the caller must hand the screen back rather than leave the OTA takeover on screen indefinitely |
 
 The MQTT-down case is the main justification for a local display: the device
 keeps regulating without the backend, and the screen must make that obvious
