@@ -149,6 +149,25 @@ void test_sub_decimal_change_does_not_dirty_the_temperature(void) {
     TEST_ASSERT_FALSE(p.isDirty(DisplayField::CONTROL_TEMP));
 }
 
+// All 7 DisplayField enumerators, used to assert dirty/clean state across
+// every field rather than a hand-picked subset.
+static const DisplayField kAllDisplayFields[] = {
+    DisplayField::DEVICE_ID,   DisplayField::CONNECTION,      DisplayField::CONTROL_TEMP,
+    DisplayField::SETPOINT,    DisplayField::OFFLINE_NOTICE,  DisplayField::OUTPUT_BAND,
+    DisplayField::SENSORS,
+};
+
+// Asserts that every field other than `except` is clean. Callers assert
+// `except` itself dirty separately, so this only ever needs to check "not
+// dirty" for the rest.
+static void assertAllFieldsCleanExcept(const DisplayPresenter& p, DisplayField except) {
+    for (DisplayField field : kAllDisplayFields) {
+        if (field != except) {
+            TEST_ASSERT_FALSE(p.isDirty(field));
+        }
+    }
+}
+
 void test_visible_temperature_change_dirties_only_that_field(void) {
     DisplayPresenter p;
     DisplayModel m = makeModel();
@@ -158,8 +177,7 @@ void test_visible_temperature_change_dirties_only_that_field(void) {
     m.controlTemperatureC = 19.1f;
     p.update(m);
     TEST_ASSERT_TRUE(p.isDirty(DisplayField::CONTROL_TEMP));
-    TEST_ASSERT_FALSE(p.isDirty(DisplayField::SETPOINT));
-    TEST_ASSERT_FALSE(p.isDirty(DisplayField::OUTPUT_BAND));
+    assertAllFieldsCleanExcept(p, DisplayField::CONTROL_TEMP);
 }
 
 void test_mqtt_drop_leaves_the_temperature_alone(void) {
@@ -239,8 +257,9 @@ void test_mark_all_dirty_forces_a_full_repaint(void) {
     p.update(makeModel());
     p.clearDirty();
     p.markAllDirty();
-    TEST_ASSERT_TRUE(p.isDirty(DisplayField::DEVICE_ID));
-    TEST_ASSERT_TRUE(p.isDirty(DisplayField::SENSORS));
+    for (DisplayField field : kAllDisplayFields) {
+        TEST_ASSERT_TRUE(p.isDirty(field));
+    }
 }
 
 int main(int argc, char** argv) {
