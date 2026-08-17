@@ -21,10 +21,10 @@ const SECTIONS: Section[] = [
   { id: "troubleshooting", title: "Troubleshooting" },
 ];
 
-const h2 = "font-display text-lg font-semibold text-neutral-900 dark:text-neutral-100 scroll-mt-6";
-const p = "text-sm leading-relaxed text-neutral-700 dark:text-neutral-300";
-const label = "text-sm font-medium text-neutral-800 dark:text-neutral-200";
-const card = "space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4";
+const h2 = "font-display text-lg font-semibold text-fg scroll-mt-6";
+const p = "text-sm leading-relaxed text-fg";
+const label = "text-sm font-medium text-fg";
+const card = "space-y-2 rounded-xl border border-line bg-card p-4";
 
 function NavLink({ id, title, active, onClick }: { id: string; title: string; active: boolean; onClick: () => void }): JSX.Element {
   return (
@@ -33,8 +33,8 @@ function NavLink({ id, title, active, onClick }: { id: string; title: string; ac
       onClick={onClick}
       className={`block rounded-xl px-3 py-1.5 text-sm transition-colors ${
         active
-          ? "bg-neutral-200 text-amber-600 dark:bg-neutral-800 dark:text-amber-400"
-          : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+          ? "bg-tint text-amber"
+          : "text-muted hover:text-fg"
       }`}
     >
       {title}
@@ -49,7 +49,7 @@ export function Guide(): JSX.Element {
     <div className="mx-auto flex max-w-6xl gap-8 p-6">
       <nav className="hidden w-48 shrink-0 lg:block">
         <div className="sticky top-6 space-y-0.5">
-          <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
+          <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wide text-muted">
             On this page
           </p>
           {SECTIONS.map((s) => (
@@ -60,7 +60,7 @@ export function Guide(): JSX.Element {
 
       <div className="min-w-0 flex-1 space-y-12 pb-24">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Guide</h1>
+          <h1 className="font-display text-2xl font-semibold text-fg">Guide</h1>
           <p className={`${p} mt-1`}>Everything you need to run BrewHub day to day — no code, just brewing.</p>
         </div>
 

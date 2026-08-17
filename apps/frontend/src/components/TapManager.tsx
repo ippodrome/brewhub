@@ -10,9 +10,9 @@ function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
   const fraction = tap.fullVolumeMl > 0 ? tap.remainingVolumeMl / tap.fullVolumeMl : 0;
   const percent = Math.max(0, Math.min(100, fraction * 100));
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-tint">
       <div
-        className={`h-full rounded-full ${percent < LOW_VOLUME_THRESHOLD_PERCENT ? "bg-red-400" : "bg-emerald-400"}`}
+        className={`h-full rounded-full ${percent < LOW_VOLUME_THRESHOLD_PERCENT ? "bg-crit" : "bg-ok"}`}
         style={{ width: `${percent}%` }}
       />
     </div>
@@ -41,14 +41,14 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   });
 
   return (
-    <li className="space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2">
+    <li className="space-y-2 rounded-xl border border-line bg-card px-3 py-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-neutral-800 dark:text-neutral-200">
+          <p className="text-sm text-fg">
             {tap.name}
-            {tap.style && <span className="text-neutral-600 dark:text-neutral-500"> · {tap.style}</span>}
+            {tap.style && <span className="text-dim"> · {tap.style}</span>}
           </p>
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          <p className="text-xs text-dim">
             {tap.measurementType === "flow" ? (
               <>Flow {tap.flowIndex}</>
             ) : (
@@ -65,13 +65,13 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
             <>
               <button
                 onClick={() => setPoursOpen((v) => !v)}
-                className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
               >
                 Pours
               </button>
               <button
                 onClick={() => setCalibrationOpen((v) => !v)}
-                className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
               >
                 Calibrate
               </button>
@@ -80,14 +80,14 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+            className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
           >
             New keg
           </button>
           <button
             onClick={() => deleteMutation.mutate()}
             disabled={deleteMutation.isPending}
-            className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+            className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-crit"
           >
             Remove
           </button>
@@ -96,13 +96,13 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
 
       <div className="space-y-1">
         <VolumeBar tap={tap} />
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-xs text-dim">
           {Math.round(tap.remainingVolumeMl)} / {Math.round(tap.fullVolumeMl)} mL remaining
         </p>
       </div>
 
       {tap.kickedAt !== null && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+        <div className="rounded-xl border border-crit/30 bg-crit/10 px-3 py-2 text-xs text-crit">
           Kicked {new Date(tap.kickedAt).toLocaleString()} — gas was running through the line instead of beer.
           Tap a new keg with <strong>New keg</strong> to clear this.
         </div>
@@ -113,7 +113,7 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
       )}
 
       {poursOpen && (
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2 text-xs text-neutral-600 dark:text-neutral-500">
+        <div className="border-t border-line pt-2 text-xs text-dim">
           {poursQuery.isLoading && <p>Loading...</p>}
           {poursQuery.data && poursQuery.data.length === 0 && <p>No pours logged yet.</p>}
           {poursQuery.data && poursQuery.data.length > 0 && (
@@ -133,8 +133,8 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
-const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
+  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+const labelClass = "text-xs text-dim";
 
 export function TapManager({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
   const [measurementType, setMeasurementType] = useState<TapMeasurementType>("flow");
@@ -209,17 +209,17 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Taps</h3>
-        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-fg">Taps</h3>
+        <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>
 
-      {tapsQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading taps...</p>}
+      {tapsQuery.isLoading && <p className="text-xs text-dim">Loading taps...</p>}
       {tapsQuery.data && tapsQuery.data.length === 0 && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">No taps configured yet.</p>
+        <p className="text-xs text-dim">No taps configured yet.</p>
       )}
       {tapsQuery.data && tapsQuery.data.length > 0 && (
         <ul className="space-y-2">
@@ -229,8 +229,8 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
         </ul>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">New tap</p>
+      <form onSubmit={handleSubmit} className="space-y-2 border-t border-line pt-3">
+        <p className="text-xs font-medium text-muted">New tap</p>
 
         <div className="space-y-1">
           <label className={labelClass}>Measurement</label>
@@ -275,7 +275,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
                 ))}
               </select>
               {kegScaleDevices.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-500">No keg_scale devices added yet.</p>
+                <p className="text-xs text-amber">No keg_scale devices added yet.</p>
               )}
             </div>
           )}
@@ -381,7 +381,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
               />
             </div>
             {weightDeviceId && (
-              <p className="text-xs text-neutral-600 dark:text-neutral-500">
+              <p className="text-xs text-dim">
                 Current scale reading:{" "}
                 {currentScaleGrams === undefined
                   ? "no reading yet"
@@ -398,7 +398,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+            className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
           >
             {createMutation.isPending ? "Adding..." : "Add tap"}
           </button>

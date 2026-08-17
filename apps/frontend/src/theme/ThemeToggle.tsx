@@ -8,7 +8,7 @@ export function ThemeToggle(): JSX.Element {
       onClick={toggleTheme}
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      className="rounded-xl p-1.5 text-neutral-600 dark:text-neutral-500 hover:bg-neutral-200 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+      className="rounded-xl p-1.5 text-dim hover:bg-tint hover:text-fg"
     >
       {theme === "dark" ? (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">

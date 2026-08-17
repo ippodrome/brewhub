@@ -4,7 +4,7 @@ import { MAX_SENSOR_OFFSET_C, type Device } from "@brewhub/shared-types";
 import { listSensors, updateSensor } from "../api/sensors";
 
 const inputClass =
-  "rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+  "rounded-xl border border-line-strong bg-surface px-2 py-1 text-xs text-fg outline-none focus:border-line-focus";
 
 function SensorFields({
   deviceId,
@@ -51,7 +51,7 @@ function SensorFields({
           if (e.key === "Enter") mutation.mutate({ label: label || null });
         }}
       />
-      <label className="flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-500">
+      <label className="flex items-center gap-1 text-xs text-dim">
         <span title={`Added to this sensor's raw reading. Range ±${MAX_SENSOR_OFFSET_C} °C.`}>
           Offset
         </span>
@@ -88,23 +88,23 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
   });
 
   return (
-    <div className="mt-3 space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-3 rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Sensors</h3>
-        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-fg">Sensors</h3>
+        <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>
 
-      {sensorsQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading sensors...</p>}
+      {sensorsQuery.isLoading && <p className="text-xs text-dim">Loading sensors...</p>}
       {sensorsQuery.data && sensorsQuery.data.length === 0 && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-xs text-dim">
           No sensors discovered yet — they appear here automatically once the device starts reporting telemetry.
         </p>
       )}
       {sensorsQuery.data && sensorsQuery.data.length > 0 && (
         <>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-xs text-dim">
           Offset is added to the raw reading to correct it against a reference thermometer. The
           control sensor's offset is also pushed to the device, so its own control loop corrects the
           same way.
@@ -113,10 +113,10 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
           {sensorsQuery.data.map((sensor) => (
             <li
               key={sensor.address}
-              className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-xl border border-line bg-card px-3 py-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-xs text-neutral-600 dark:text-neutral-500">{sensor.address}</p>
+                <p className="truncate font-mono text-xs text-dim">{sensor.address}</p>
                 <SensorFields
                   deviceId={device.id}
                   address={sensor.address}
@@ -125,14 +125,14 @@ export function SensorLabelEditor({ device, onClose }: { device: Device; onClose
                 />
               </div>
               {sensor.isControlSensor ? (
-                <span className="whitespace-nowrap rounded-xl bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">
+                <span className="whitespace-nowrap rounded-xl bg-ok/10 px-2.5 py-1 text-xs text-ok">
                   Control sensor
                 </span>
               ) : (
                 <button
                   onClick={() => setControlMutation.mutate(sensor.address)}
                   disabled={setControlMutation.isPending}
-                  className="whitespace-nowrap rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                  className="whitespace-nowrap rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
                 >
                   Set as control
                 </button>

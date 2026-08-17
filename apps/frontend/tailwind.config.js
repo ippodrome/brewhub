@@ -11,6 +11,38 @@ export default {
   },
   theme: {
     extend: {
+      // Role-named colours backed by the CSS custom properties in
+      // src/styles/index.css. Components name the role (`bg-card`, `text-dim`)
+      // instead of a shade, so a theme change is a variable change rather than
+      // a class change on every element. The `<alpha-value>` slot is what
+      // keeps `/10`-style opacity utilities working.
+      colors: {
+        base: "rgb(var(--c-base) / <alpha-value>)",
+        surface: "rgb(var(--c-surface) / <alpha-value>)",
+        card: "rgb(var(--c-card) / <alpha-value>)",
+        tint: "rgb(var(--c-tint) / <alpha-value>)",
+        line: {
+          DEFAULT: "rgb(var(--c-line) / <alpha-value>)",
+          strong: "rgb(var(--c-line-strong) / <alpha-value>)",
+          focus: "rgb(var(--c-line-focus) / <alpha-value>)",
+        },
+        fg: "rgb(var(--c-fg) / <alpha-value>)",
+        muted: "rgb(var(--c-muted) / <alpha-value>)",
+        dim: "rgb(var(--c-dim) / <alpha-value>)",
+
+        amber: {
+          DEFAULT: "rgb(var(--c-amber) / <alpha-value>)",
+          hi: "rgb(var(--c-amber-hi) / <alpha-value>)",
+        },
+        "on-amber": "rgb(var(--c-on-amber) / <alpha-value>)",
+
+        // Thermal semantics. Kept separate from the accent so `cool` always
+        // means "the compressor is running" and never decoration.
+        cool: "rgb(var(--c-cool) / <alpha-value>)",
+        heat: "rgb(var(--c-heat) / <alpha-value>)",
+        ok: "rgb(var(--c-ok) / <alpha-value>)",
+        crit: "rgb(var(--c-crit) / <alpha-value>)",
+      },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         display: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],

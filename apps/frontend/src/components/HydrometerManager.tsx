@@ -6,8 +6,8 @@ import { getGravityHistory } from "../api/history";
 import { DeviceHistoryChart } from "./DeviceHistoryChart";
 
 const inputClass =
-  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
-const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
+  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+const labelClass = "text-xs text-dim";
 
 const TYPE_LABELS: Record<HydrometerType, string> = {
   tilt: "Tilt",
@@ -69,32 +69,32 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Hydrometer</h3>
-        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-fg">Hydrometer</h3>
+        <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>
 
-      {hydrometersQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading...</p>}
+      {hydrometersQuery.isLoading && <p className="text-xs text-dim">Loading...</p>}
 
       {assigned ? (
         <div className="space-y-3">
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
+          <div className="rounded-xl border border-line bg-card p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-neutral-800 dark:text-neutral-200">
+                <p className="text-sm text-fg">
                   {TYPE_LABELS[assigned.type]} · {assigned.identifier}
                 </p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-500">
+                <p className="text-xs text-dim">
                   {latest?.gravitySg != null ? `Latest: ${latest.gravitySg.toFixed(3)} SG` : "No reading yet"}
                 </p>
               </div>
               <button
                 onClick={() => unassignMutation.mutate(assigned.id)}
                 disabled={unassignMutation.isPending}
-                className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
               >
                 Unassign
               </button>
@@ -128,7 +128,7 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          <p className="text-xs text-dim">
             No hydrometer assigned to this fermenter yet.
           </p>
 
@@ -138,23 +138,23 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
               {unassigned.map((h) => (
                 <div
                   key={h.id}
-                  className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
+                  className="flex items-center justify-between rounded-xl border border-line bg-card px-3 py-2"
                 >
-                  <span className="text-sm text-neutral-800 dark:text-neutral-200">
+                  <span className="text-sm text-fg">
                     {TYPE_LABELS[h.type]} · {h.identifier}
                   </span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => assignMutation.mutate(h.id)}
                       disabled={assignMutation.isPending}
-                      className="rounded-xl px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                      className="rounded-xl px-2.5 py-1 text-xs text-ok hover:bg-ok/10"
                     >
                       Assign
                     </button>
                     <button
                       onClick={() => deleteMutation.mutate(h.id)}
                       disabled={deleteMutation.isPending}
-                      className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+                      className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-crit"
                     >
                       Delete
                     </button>
@@ -164,8 +164,8 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
             </div>
           )}
 
-          <form onSubmit={handleCreate} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-            <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Add a new hydrometer</p>
+          <form onSubmit={handleCreate} className="space-y-2 border-t border-line pt-3">
+            <p className="text-xs font-medium text-muted">Add a new hydrometer</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className={labelClass}>Type</label>
@@ -189,7 +189,7 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
               </div>
             </div>
             {createMutation.isError && (
-              <p className="text-xs text-red-600 dark:text-red-400">
+              <p className="text-xs text-crit">
                 Could not add hydrometer — that identifier may already be in use.
               </p>
             )}
@@ -197,7 +197,7 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+                className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
               >
                 {createMutation.isPending ? "Adding..." : "Add hydrometer"}
               </button>

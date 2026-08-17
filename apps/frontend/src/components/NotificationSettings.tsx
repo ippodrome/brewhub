@@ -15,8 +15,8 @@ import {
 } from "../notifications/pushSubscribe";
 
 const inputClass =
-  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
-const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
+  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+const labelClass = "text-xs text-dim";
 
 function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX.Element {
   const queryClient = useQueryClient();
@@ -47,7 +47,7 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
 
   if (!isPushSupported()) {
     return (
-      <p className="text-xs text-neutral-600 dark:text-neutral-500">
+      <p className="text-xs text-dim">
         Browser push isn't available here — needs Chrome, Edge, or Firefox over HTTPS.
       </p>
     );
@@ -55,17 +55,17 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-neutral-600 dark:text-neutral-500">
+      <p className="text-xs text-dim">
         {subQuery.data
           ? "This browser is subscribed to push notifications."
           : "This browser is not yet subscribed."}
       </p>
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-crit">{error}</p>}
       {subQuery.data ? (
         <button
           onClick={() => unsubscribeMutation.mutate()}
           disabled={unsubscribeMutation.isPending}
-          className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+          className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
         >
           {unsubscribeMutation.isPending ? "Unsubscribing..." : "Unsubscribe this browser"}
         </button>
@@ -73,7 +73,7 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
         <button
           onClick={() => subscribeMutation.mutate()}
           disabled={subscribeMutation.isPending || !vapidPublicKey}
-          className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+          className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
         >
           {subscribeMutation.isPending ? "Subscribing..." : "Enable push notifications"}
         </button>
@@ -115,24 +115,24 @@ export function NotificationSettings(): JSX.Element {
     saveMutation.mutate();
   }
 
-  if (settingsQuery.isLoading) return <p className="text-sm text-neutral-600 dark:text-neutral-500">Loading...</p>;
-  if (!settingsQuery.data) return <p className="text-sm text-red-600 dark:text-red-400">Could not load notification settings.</p>;
+  if (settingsQuery.isLoading) return <p className="text-sm text-dim">Loading...</p>;
+  if (!settingsQuery.data) return <p className="text-sm text-crit">Could not load notification settings.</p>;
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-neutral-600 dark:text-neutral-500">
+      <p className="text-xs text-dim">
         BrewHub notifies you when a device goes offline, or when a keg's remaining volume drops low — over any
         channels you enable below.
       </p>
 
-      <div className="space-y-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Browser push</p>
+      <div className="space-y-3 rounded-2xl border border-line bg-card p-4">
+        <p className="text-sm font-medium text-muted">Browser push</p>
         <PushSection vapidPublicKey={settingsQuery.data.vapidPublicKey} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Telegram</p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-line bg-card p-4">
+        <p className="text-sm font-medium text-muted">Telegram</p>
+        <p className="text-xs text-dim">
           Message <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="underline">@BotFather</a> on
           Telegram to create a bot and get a token; message your new bot once, then check{" "}
           <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code> to find your chat id.
@@ -158,8 +158,8 @@ export function NotificationSettings(): JSX.Element {
           </div>
         </div>
 
-        <p className="pt-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Discord</p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">Server settings → Integrations → Webhooks → New Webhook → copy its URL.</p>
+        <p className="pt-2 text-sm font-medium text-muted">Discord</p>
+        <p className="text-xs text-dim">Server settings → Integrations → Webhooks → New Webhook → copy its URL.</p>
         <div className="space-y-1">
           <label className={labelClass}>Webhook URL</label>
           <input
@@ -172,22 +172,22 @@ export function NotificationSettings(): JSX.Element {
 
         <div className="flex items-center justify-between pt-2">
           <div>
-            {testMutation.isSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400">Test notification sent.</p>}
-            {testMutation.isError && <p className="text-xs text-red-600 dark:text-red-400">Test failed to send.</p>}
+            {testMutation.isSuccess && <p className="text-xs text-ok">Test notification sent.</p>}
+            {testMutation.isError && <p className="text-xs text-crit">Test failed to send.</p>}
           </div>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => testMutation.mutate()}
               disabled={testMutation.isPending}
-              className="rounded-xl px-3 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+              className="rounded-xl px-3 py-1.5 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
             >
               {testMutation.isPending ? "Sending..." : "Send test notification"}
             </button>
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+              className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
             >
               {saveMutation.isPending ? "Saving..." : "Save"}
             </button>

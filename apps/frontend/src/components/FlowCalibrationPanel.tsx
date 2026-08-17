@@ -44,10 +44,10 @@ function rejectionMessage(error: unknown): string {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
-const labelClass = "text-xs text-neutral-600 dark:text-neutral-500";
+  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+const labelClass = "text-xs text-dim";
 const buttonClass =
-  "rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200";
+  "rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg";
 
 export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
   const [method, setMethod] = useState<"volume" | "weight">("volume");
@@ -101,10 +101,10 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
   const amountIsValid = Number.isFinite(Number(amount)) && Number(amount) > 0;
 
   return (
-    <div className="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+    <div className="space-y-3 border-t border-line pt-2">
       {!session && (
         <div className="space-y-2">
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          <p className="text-xs text-dim">
             Currently {Math.round(tap.pulsesPerLiter ?? 0)} pulses/L. To recalibrate: start below,
             pour at least {MIN_CALIBRATION_VOLUME_ML} mL into a measuring jug or onto a scale, then
             enter what you actually got. The poured amount is deducted from the keg, so nothing is
@@ -113,16 +113,16 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
           <button
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
-            className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-amber-400 disabled:opacity-50"
+            className="rounded-xl bg-amber px-3 py-1.5 text-xs font-medium text-on-amber hover:bg-amber-hi disabled:opacity-50"
           >
             {startMutation.isPending ? "Starting..." : "Start calibration"}
           </button>
           {startMutation.isError && (
-            <p className="text-xs text-red-600 dark:text-red-400">Could not start calibration.</p>
+            <p className="text-xs text-crit">Could not start calibration.</p>
           )}
 
           {result && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok">
               <p>
                 Calibrated: {Math.round(result.previousPulsesPerLiter)} →{" "}
                 <span className="font-medium">{Math.round(result.pulsesPerLiter)}</span> pulses/L (
@@ -139,11 +139,11 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
 
       {session && (
         <div className="space-y-2">
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 py-2">
-            <p className="text-xs text-neutral-600 dark:text-neutral-500">Pouring...</p>
-            <p className="text-sm tabular-nums text-neutral-800 dark:text-neutral-200">
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <p className="text-xs text-dim">Pouring...</p>
+            <p className="text-sm tabular-nums text-fg">
               {session.pulsesSoFar} pulses
-              <span className="text-neutral-600 dark:text-neutral-500">
+              <span className="text-dim">
                 {" "}
                 · ~{Math.round(session.estimatedVolumeMl)} mL at the old factor
               </span>
@@ -157,8 +157,8 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
                 onClick={() => setMethod(option)}
                 className={`rounded-xl px-2.5 py-1 text-xs ${
                   method === option
-                    ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                    : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    ? "bg-tint text-fg"
+                    : "text-muted hover:bg-tint"
                 }`}
               >
                 {option === "volume" ? "By volume" : "By weight"}
@@ -196,7 +196,7 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
             )}
           </div>
           {method === "weight" && (
-            <p className="text-xs text-neutral-600 dark:text-neutral-500">
+            <p className="text-xs text-dim">
               Weigh the empty vessel first and subtract it. Water is 1.000; beer near terminal
               gravity is about 1.010.
             </p>
@@ -206,7 +206,7 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
             <button
               onClick={() => finishMutation.mutate()}
               disabled={!amountIsValid || finishMutation.isPending}
-              className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-medium text-neutral-950 hover:bg-amber-400 disabled:opacity-50"
+              className="rounded-xl bg-amber px-3 py-1.5 text-xs font-medium text-on-amber hover:bg-amber-hi disabled:opacity-50"
             >
               {finishMutation.isPending ? "Applying..." : "Apply calibration"}
             </button>
@@ -220,7 +220,7 @@ export function FlowCalibrationPanel({ device, tap }: { device: Device; tap: Tap
           </div>
 
           {finishMutation.isError && (
-            <p className="text-xs text-red-600 dark:text-red-400">
+            <p className="text-xs text-crit">
               {rejectionMessage(finishMutation.error)}
             </p>
           )}

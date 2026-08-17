@@ -25,14 +25,14 @@ const NAV_ITEMS = [
 function navLinkClass({ isActive }: { isActive: boolean }): string {
   return `flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium transition-colors ${
     isActive
-      ? "bg-neutral-200 dark:bg-neutral-800 text-amber-600 dark:text-amber-400"
-      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+      ? "bg-tint text-amber"
+      : "text-muted hover:text-fg"
   }`;
 }
 
 function tabLinkClass({ isActive }: { isActive: boolean }): string {
   return `flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium ${
-    isActive ? "text-amber-600 dark:text-amber-400" : "text-neutral-500 dark:text-neutral-400"
+    isActive ? "text-amber" : "text-muted"
   }`;
 }
 
@@ -41,14 +41,14 @@ function Shell(): JSX.Element {
   const guideActive = pathname === "/guide";
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <header className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-lg sticky top-0 z-40 px-4 sm:px-6 py-3 sm:py-3.5">
+    <div className="min-h-screen bg-base">
+      <header className="flex items-center justify-between border-b border-line bg-base/80 backdrop-blur-lg sticky top-0 z-40 px-4 sm:px-6 py-3 sm:py-3.5">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-inner">
-              <Thermometer className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber to-heat shadow-inner">
+              <Thermometer className="h-4.5 w-4.5 text-on-amber" strokeWidth={2.5} />
             </div>
-            <span className="font-display text-lg text-neutral-900 dark:text-neutral-100">BrewHub</span>
+            <span className="font-display text-lg text-fg">BrewHub</span>
           </div>
           {/* Full nav with labels — desktop/tablet only. Mobile gets the
               fixed bottom tab bar below instead, so every destination
@@ -70,8 +70,8 @@ function Shell(): JSX.Element {
             title="Guide"
             className={`rounded-xl p-1.5 ${
               guideActive
-                ? "bg-neutral-200 dark:bg-neutral-800 text-amber-600 dark:text-amber-400"
-                : "text-neutral-600 dark:text-neutral-500 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-tint text-amber"
+                : "text-dim hover:bg-tint hover:text-fg"
             }`}
           >
             <BookOpen className="h-4 w-4" strokeWidth={2} />
@@ -83,7 +83,7 @@ function Shell(): JSX.Element {
                 clearToken();
                 window.location.href = "/login";
               }}
-              className="flex items-center gap-1.5 text-sm text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+              className="flex items-center gap-1.5 text-sm text-dim hover:text-fg"
               aria-label="Sign out"
             >
               <LogOut className="h-3.5 w-3.5" strokeWidth={2} />
@@ -96,7 +96,7 @@ function Shell(): JSX.Element {
         <Outlet />
       </main>
       <nav
-        className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg"
+        className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-line bg-card/95 backdrop-blur-lg"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {NAV_ITEMS.map(({ to, end, label, icon: Icon }) => (

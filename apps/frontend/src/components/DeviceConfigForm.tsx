@@ -36,25 +36,25 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <form onSubmit={handleSubmit} className="mt-3 space-y-3 rounded-xl border border-line bg-surface p-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-500">Setpoint (°C)</label>
+          <label className="text-xs text-dim">Setpoint (°C)</label>
           <input
             type="number"
             step="0.1"
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
             value={setpointC}
             onChange={(e) => setSetpointC(e.target.value)}
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-500">Hysteresis (°C)</label>
+          <label className="text-xs text-dim">Hysteresis (°C)</label>
           <input
             type="number"
             step="0.1"
             min="0.1"
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
             value={hysteresisC}
             onChange={(e) => setHysteresisC(e.target.value)}
           />
@@ -62,9 +62,9 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-neutral-600 dark:text-neutral-500">Mode</label>
+        <label className="text-xs text-dim">Mode</label>
         <select
-          className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+          className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
           value={mode}
           onChange={(e) => setMode(e.target.value as Mode)}
         >
@@ -75,50 +75,50 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
       </div>
 
       {mode === "pid" && (
-        <div className="space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 p-3">
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <div className="space-y-2 rounded-xl border border-line bg-card p-3">
+          <p className="text-xs text-dim">
             PID gains. Output is time-proportioned: the relay is on for a fraction of each window
             matching the PID demand.
           </p>
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <label className="text-xs text-neutral-600 dark:text-neutral-500">Kp</label>
+              <label className="text-xs text-dim">Kp</label>
               <input
                 type="number"
                 step="0.1"
-                className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
                 value={kp}
                 onChange={(e) => setKp(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-600 dark:text-neutral-500">Ki</label>
+              <label className="text-xs text-dim">Ki</label>
               <input
                 type="number"
                 step="0.01"
-                className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
                 value={ki}
                 onChange={(e) => setKi(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-600 dark:text-neutral-500">Kd</label>
+              <label className="text-xs text-dim">Kd</label>
               <input
                 type="number"
                 step="0.1"
-                className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
                 value={kd}
                 onChange={(e) => setKd(e.target.value)}
               />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-neutral-600 dark:text-neutral-500">Time-proportioning window (minutes)</label>
+            <label className="text-xs text-dim">Time-proportioning window (minutes)</label>
             <input
               type="number"
               step="1"
               min="1"
-              className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+              className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
               value={pidWindowMinutes}
               onChange={(e) => setPidWindowMinutes(e.target.value)}
             />
@@ -127,13 +127,13 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
       )}
 
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="rounded-xl px-3 py-1.5 text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <button type="button" onClick={onClose} className="rounded-xl px-3 py-1.5 text-xs text-dim hover:text-fg">
           Cancel
         </button>
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+          className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
         >
           {mutation.isPending ? "Saving..." : "Save config"}
         </button>
@@ -175,12 +175,12 @@ function RelayPolarityFields({ device }: { device: Device }): JSX.Element {
   });
 
   const selectClass =
-    "w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500";
+    "w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
 
   return (
-    <div className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-      <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Relay wiring</p>
-      <p className="text-xs text-neutral-600 dark:text-neutral-500">
+    <div className="space-y-2 border-t border-line pt-3">
+      <p className="text-xs font-medium text-muted">Relay wiring</p>
+      <p className="text-xs text-dim">
         Which logic level switches your relay module on. Most opto-isolated boards are active-low. Only change this
         if the output is behaving backwards — the device forces everything off and waits out its minimum off-time
         before resuming control, so the compressor can't be short-cycled by the change.
@@ -188,7 +188,7 @@ function RelayPolarityFields({ device }: { device: Device }): JSX.Element {
 
       <div className={hasHeating ? "grid grid-cols-2 gap-3" : ""}>
         <div className="space-y-1">
-          <label className="text-xs text-neutral-600 dark:text-neutral-500">Cooling relay</label>
+          <label className="text-xs text-dim">Cooling relay</label>
           <select className={selectClass} value={cooling} onChange={(e) => setCooling(e.target.value as Polarity)}>
             <option value="default">Board default</option>
             <option value="low">Active low</option>
@@ -197,7 +197,7 @@ function RelayPolarityFields({ device }: { device: Device }): JSX.Element {
         </div>
         {hasHeating && (
           <div className="space-y-1">
-            <label className="text-xs text-neutral-600 dark:text-neutral-500">Heating relay</label>
+            <label className="text-xs text-dim">Heating relay</label>
             <select className={selectClass} value={heating} onChange={(e) => setHeating(e.target.value as Polarity)}>
               <option value="default">Board default</option>
               <option value="low">Active low</option>
@@ -212,13 +212,13 @@ function RelayPolarityFields({ device }: { device: Device }): JSX.Element {
           type="button"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="rounded-xl px-3 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+          className="rounded-xl px-3 py-1.5 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
         >
           {mutation.isPending ? "Applying..." : "Apply relay wiring"}
         </button>
       </div>
       {mutation.isError && (
-        <p className="text-xs text-red-600 dark:text-red-400">Could not apply the relay wiring change.</p>
+        <p className="text-xs text-crit">Could not apply the relay wiring change.</p>
       )}
     </div>
   );

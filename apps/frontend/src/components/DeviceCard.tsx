@@ -34,15 +34,15 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
   }
 
   return (
-    <div className="mt-2 space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+    <div className="mt-2 space-y-2 border-t border-line pt-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-xs text-dim">
           {grams === undefined ? "No reading yet" : grams === null ? "Sensor fault" : `${Math.round(grams)} g`}
         </p>
         <div className="flex gap-2">
           <button
             onClick={() => setCalibrationOpen((v) => !v)}
-            className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+            className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             title="Set the HX711 raw-to-grams calibration factor"
           >
             Calibrate
@@ -50,7 +50,7 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
           <button
             onClick={() => tareMutation.mutate()}
             disabled={tareMutation.isPending}
-            className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+            className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
             title="Zero the scale at its current load — only do this with the platform in its true reference state (see firmware README)"
           >
             {tareMutation.isPending ? "Taring..." : "Tare"}
@@ -61,9 +61,9 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
       {calibrationOpen && (
         <form
           onSubmit={handleCalibrationSubmit}
-          className="space-y-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-3"
+          className="space-y-2 rounded-xl border border-line bg-surface p-3"
         >
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          <p className="text-xs text-dim">
             Raw-to-grams calibration factor. Determine it by placing a known reference weight on the platform
             and adjusting until the reading above is correct — see the keg-scale firmware README.
           </p>
@@ -72,7 +72,7 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
               type="number"
               step="any"
               placeholder="e.g. -22500"
-              className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+              className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
               value={calibrationFactor}
               onChange={(e) => setCalibrationFactor(e.target.value)}
               required
@@ -80,13 +80,13 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
             <button
               type="submit"
               disabled={calibrationMutation.isPending}
-              className="shrink-0 rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+              className="shrink-0 rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
             >
               {calibrationMutation.isPending ? "Applying..." : "Apply"}
             </button>
           </div>
           {calibrationMutation.isError && (
-            <p className="text-xs text-red-600 dark:text-red-400">Could not apply calibration factor.</p>
+            <p className="text-xs text-crit">Could not apply calibration factor.</p>
           )}
         </form>
       )}
@@ -110,17 +110,17 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
   });
 
   return (
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+    <div className="rounded-2xl border border-line bg-card p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span
-              className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-emerald-400" : "bg-neutral-400 dark:bg-neutral-600"}`}
+              className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-ok" : "bg-dim"}`}
               title={device.isOnline ? "Online" : "Offline"}
             />
-            <span className="font-medium text-neutral-900 dark:text-neutral-100">{device.name}</span>
+            <span className="font-medium text-fg">{device.name}</span>
           </div>
-          <p className="mt-0.5 text-xs text-neutral-600 dark:text-neutral-500">
+          <p className="mt-0.5 text-xs text-dim">
             {device.type} · {device.id}
             {device.chamberName && <> · {device.chamberName}</>}
           </p>
@@ -129,7 +129,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setConfigOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               Configure
             </button>
@@ -137,7 +137,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setSensorsOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               Sensors
             </button>
@@ -145,7 +145,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "fermenter" && (
             <button
               onClick={() => setProfilesOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               Profiles
             </button>
@@ -153,7 +153,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "kegerator" && (
             <button
               onClick={() => setTapsOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               Taps
             </button>
@@ -161,7 +161,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type === "fermenter" && (
             <button
               onClick={() => setHydrometerOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               Hydrometer
             </button>
@@ -169,7 +169,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
           {device.type !== "sensor" && device.type !== "gravity_bridge" && (
             <button
               onClick={() => setHistoryOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
             >
               History
             </button>
@@ -178,7 +178,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
             <button
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
-              className="rounded-xl bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-500/20"
+              className="rounded-xl bg-crit/10 px-2.5 py-1 text-xs text-crit hover:bg-crit/20"
             >
               Confirm delete
             </button>
@@ -186,7 +186,7 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
             <button
               onClick={() => setConfirmingDelete(true)}
               onBlur={() => setConfirmingDelete(false)}
-              className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
+              className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-fg"
             >
               Remove
             </button>

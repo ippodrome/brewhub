@@ -42,13 +42,13 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
     <div className="modal-backdrop fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
       <form
         onSubmit={handleSubmit}
-        className="modal-panel w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6"
+        className="modal-panel w-full max-w-md space-y-4 rounded-2xl border border-line bg-card p-6"
       >
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Add device</h2>
+        <h2 className="text-lg font-semibold text-fg">Add device</h2>
 
         {discoveredQuery.data && discoveredQuery.data.length > 0 && (
-          <div className="space-y-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-2.5">
-            <p className="text-xs text-neutral-600 dark:text-neutral-500">
+          <div className="space-y-1.5 rounded-xl border border-line bg-surface p-2.5">
+            <p className="text-xs text-dim">
               Announced over MQTT, not yet registered — click to fill in the fields below.
             </p>
             <ul className="space-y-1">
@@ -57,10 +57,10 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
                   <button
                     type="button"
                     onClick={() => pickDiscovered(d.deviceId, d.board)}
-                    className="w-full rounded-xl px-2 py-1.5 text-left text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="w-full rounded-xl px-2 py-1.5 text-left text-xs text-muted hover:bg-tint"
                   >
                     <span className="font-medium">{d.deviceId}</span>{" "}
-                    <span className="text-neutral-600 dark:text-neutral-500">
+                    <span className="text-dim">
                       · {d.board} · v{d.firmwareVersion}
                     </span>
                   </button>
@@ -71,22 +71,22 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         )}
 
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Device ID</label>
+          <label className="text-sm text-muted">Device ID</label>
           <input
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             placeholder="fermenter-01"
             value={id}
             onChange={(e) => setId(e.target.value)}
             required
             autoFocus
           />
-          <p className="text-xs text-neutral-600 dark:text-neutral-500">Must match the device's compile-time DEVICE_ID.</p>
+          <p className="text-xs text-dim">Must match the device's compile-time DEVICE_ID.</p>
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Name</label>
+          <label className="text-sm text-muted">Name</label>
           <input
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             placeholder="Fermenter 1"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -95,9 +95,9 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Type</label>
+          <label className="text-sm text-muted">Type</label>
           <select
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             value={type}
             onChange={(e) => setType(e.target.value as DeviceType)}
           >
@@ -110,29 +110,29 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Chamber (optional)</label>
+          <label className="text-sm text-muted">Chamber (optional)</label>
           <input
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             placeholder="Garage"
             value={chamberName}
             onChange={(e) => setChamberName(e.target.value)}
           />
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-crit">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+            className="rounded-xl px-3 py-2 text-sm text-muted hover:text-fg"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
+            className="rounded-xl bg-amber hover:bg-amber-hi px-4 py-2 text-sm font-medium text-on-amber disabled:opacity-50"
           >
             {mutation.isPending ? "Adding..." : "Add device"}
           </button>

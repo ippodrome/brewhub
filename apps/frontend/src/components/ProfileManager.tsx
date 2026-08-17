@@ -125,28 +125,28 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Profiles</h3>
-        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-fg">Profiles</h3>
+        <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>
 
-      {profilesQuery.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading profiles...</p>}
+      {profilesQuery.isLoading && <p className="text-xs text-dim">Loading profiles...</p>}
       {profilesQuery.data && profilesQuery.data.length === 0 && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">No profiles yet.</p>
+        <p className="text-xs text-dim">No profiles yet.</p>
       )}
       {profilesQuery.data && profilesQuery.data.length > 0 && (
         <ul className="space-y-2">
           {profilesQuery.data.map((profile) => (
             <li
               key={profile.id}
-              className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="flex items-center justify-between rounded-xl border border-line bg-card px-3 py-2"
             >
               <div>
-                <p className="text-sm text-neutral-800 dark:text-neutral-200">{profile.name}</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-500">
+                <p className="text-sm text-fg">{profile.name}</p>
+                <p className="text-xs text-dim">
                   {profile.triggerType === "gravity" ? "Gravity-based" : "Time-based"} · {profile.steps.length} steps
                 </p>
               </div>
@@ -154,7 +154,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                 <button
                   onClick={() => activateMutation.mutate(profile.id)}
                   disabled={activateMutation.isPending}
-                  className="rounded-xl px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                  className="rounded-xl px-2.5 py-1 text-xs text-ok hover:bg-ok/10"
                 >
                   Activate
                 </button>
@@ -162,14 +162,14 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   onClick={() => exportMutation.mutate(profile.id)}
                   disabled={exportMutation.isPending}
                   title="Download this profile as a file you can import on another device"
-                  className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                  className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
                 >
                   Export
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate(profile.id)}
                   disabled={deleteMutation.isPending}
-                  className="rounded-xl px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
+                  className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-crit"
                 >
                   Delete
                 </button>
@@ -179,15 +179,15 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
         <button
           onClick={() => exportMutation.mutate(undefined)}
           disabled={exportMutation.isPending || !profilesQuery.data?.length}
-          className="rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-40"
+          className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-40"
         >
           Export all
         </button>
-        <label className="cursor-pointer rounded-xl px-2.5 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200">
+        <label className="cursor-pointer rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg">
           {importMutation.isPending ? "Importing..." : "Import"}
           <input
             type="file"
@@ -201,13 +201,13 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
             }}
           />
         </label>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-xs text-dim">
           Profiles are portable — export one to reuse it on another chamber, or share it.
         </p>
       </div>
 
       {importResult && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+        <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok">
           <p>
             Imported {importResult.imported.length}{" "}
             {importResult.imported.length === 1 ? "profile" : "profiles"}.
@@ -225,28 +225,28 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
         </div>
       )}
       {importMutation.isError && (
-        <p className="text-xs text-red-600 dark:text-red-400">
+        <p className="text-xs text-crit">
           {importMutation.error instanceof Error && importMutation.error.message.includes("JSON")
             ? "That file isn't valid JSON."
             : "Could not import that file — it doesn't look like a BrewHub profile export."}
         </p>
       )}
       {exportMutation.isError && (
-        <p className="text-xs text-red-600 dark:text-red-400">Could not export.</p>
+        <p className="text-xs text-crit">Could not export.</p>
       )}
 
       <button
         onClick={() => activateMutation.mutate(null)}
         disabled={activateMutation.isPending}
-        className="text-xs text-neutral-600 dark:text-neutral-500 underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
+        className="text-xs text-dim underline underline-offset-2 hover:text-fg"
       >
         Stop following a profile
       </button>
 
-      <form onSubmit={handleSubmit} className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">New profile</p>
+      <form onSubmit={handleSubmit} className="space-y-2 border-t border-line pt-3">
+        <p className="text-xs font-medium text-muted">New profile</p>
         <input
-          className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+          className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
           placeholder="Ale ferment"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -257,7 +257,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="button"
             onClick={() => setTriggerType("time")}
-            className={`rounded-xl px-2.5 py-1 ${triggerType === "time" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+            className={`rounded-xl px-2.5 py-1 ${triggerType === "time" ? "bg-tint text-fg" : "text-muted"}`}
           >
             Time-based
           </button>
@@ -266,7 +266,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
             onClick={() => hasHydrometer && setTriggerType("gravity")}
             disabled={!hasHydrometer}
             title={hasHydrometer ? undefined : "Assign a hydrometer to this device first (see the Hydrometer tab)"}
-            className={`rounded-xl px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100" : "text-neutral-500 dark:text-neutral-400"}`}
+            className={`rounded-xl px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-tint text-fg" : "text-muted"}`}
           >
             Gravity-based
           </button>
@@ -286,50 +286,50 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                       <input
                         type="number"
                         min={0}
-                        className="w-14 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-14 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                         value={days}
                         onChange={(e) => setPart({ days: Math.max(0, Number(e.target.value)) })}
                         title="Days from profile start"
                       />
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">d</span>
+                      <span className="text-xs text-muted">d</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
                         min={0}
                         max={23}
-                        className="w-12 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-12 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                         value={hours}
                         onChange={(e) => setPart({ hours: Math.max(0, Number(e.target.value)) })}
                         title="Hours"
                       />
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">h</span>
+                      <span className="text-xs text-muted">h</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
                         min={0}
                         max={59}
-                        className="w-12 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                        className="w-12 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                         value={minutes}
                         onChange={(e) => setPart({ minutes: Math.max(0, Number(e.target.value)) })}
                         title="Minutes"
                       />
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">min →</span>
+                      <span className="text-xs text-muted">min →</span>
                     </div>
                     <input
                       type="number"
                       step="0.1"
-                      className="w-20 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                      className="w-20 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                       value={step.targetC}
                       onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
                     />
-                    <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
+                    <span className="text-xs text-muted">°C</span>
                     {timeSteps.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeStep(i)}
-                        className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+                        className="ml-auto text-xs text-muted hover:text-crit"
                       >
                         Remove
                       </button>
@@ -342,25 +342,25 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   <input
                     type="number"
                     step="0.001"
-                    className="w-24 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    className="w-24 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                     value={step.atGravitySg}
                     onChange={(e) => updateGravityStep(i, { atGravitySg: Number(e.target.value) })}
                     title="Specific gravity threshold"
                   />
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">SG →</span>
+                  <span className="text-xs text-muted">SG →</span>
                   <input
                     type="number"
                     step="0.1"
-                    className="w-20 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+                    className="w-20 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
                     value={step.targetC}
                     onChange={(e) => updateGravityStep(i, { targetC: Number(e.target.value) })}
                   />
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">°C</span>
+                  <span className="text-xs text-muted">°C</span>
                   {gravitySteps.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeStep(i)}
-                      className="ml-auto text-xs text-neutral-500 dark:text-neutral-400 hover:text-red-600 dark:hover:text-red-400"
+                      className="ml-auto text-xs text-muted hover:text-crit"
                     >
                       Remove
                     </button>
@@ -372,7 +372,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
         <button
           type="button"
           onClick={addStep}
-          className="text-xs text-neutral-600 dark:text-neutral-500 underline underline-offset-2 hover:text-neutral-600 dark:hover:text-neutral-300"
+          className="text-xs text-dim underline underline-offset-2 hover:text-fg"
         >
           Add step
         </button>
@@ -381,7 +381,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+            className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
           >
             {createMutation.isPending ? "Creating..." : "Create profile"}
           </button>

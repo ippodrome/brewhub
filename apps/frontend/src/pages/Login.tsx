@@ -27,43 +27,43 @@ export function Login(): JSX.Element {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+    <div className="relative flex min-h-screen items-center justify-center bg-base">
       <div className="absolute right-6 top-6">
         <ThemeToggle />
       </div>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8"
+        className="w-full max-w-sm space-y-4 rounded-2xl border border-line bg-card p-8"
       >
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-inner">
-            <Thermometer className="h-5 w-5 text-white" strokeWidth={2.5} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber to-heat shadow-inner">
+            <Thermometer className="h-5 w-5 text-on-amber" strokeWidth={2.5} />
           </div>
-          <h1 className="font-display text-xl text-neutral-900 dark:text-neutral-100">BrewHub</h1>
+          <h1 className="font-display text-xl text-fg">BrewHub</h1>
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Username</label>
+          <label className="text-sm text-muted">Username</label>
           <input
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoFocus
           />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-neutral-500 dark:text-neutral-400">Password</label>
+          <label className="text-sm text-muted">Password</label>
           <input
             type="password"
-            className="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-400 dark:focus:border-neutral-500"
+            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-crit">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-2 font-medium text-zinc-950 disabled:opacity-50"
+          className="w-full rounded-xl bg-amber hover:bg-amber-hi px-3 py-2 font-medium text-on-amber disabled:opacity-50"
         >
           {submitting ? "Signing in..." : "Sign in"}
         </button>

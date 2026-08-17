@@ -2,6 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Colour tokens.
+ *
+ * Every colour in the app resolves through one of the names below. Components
+ * name the *role* (`bg-card`, `text-dim`, `border-line`) and never the shade,
+ * which is what lets a second theme exist without a `dark:` twin on every
+ * element — the app previously carried 514 of them.
+ *
+ * `:root` holds the complete light palette so no token is ever undefined;
+ * `.dark` only redefines values. The class is applied synchronously by the
+ * inline script in index.html before first paint, so dark remains the default
+ * look and there is no flash.
+ *
+ * Values are space-separated RGB channels rather than hex so Tailwind's
+ * `<alpha-value>` slot works — `bg-crit/10` has to keep resolving.
+ *
+ * The two palettes are deliberately not inversions of each other. Dark is a
+ * cool near-black (a cellar); light is a warm malt paper, which is what keeps
+ * amber sitting *on* the surface in light mode instead of shouting against
+ * pure white.
+ */
+:root {
+  /* chassis — warm malt */
+  --c-base: 242 240 234;
+  --c-surface: 234 230 221;
+  --c-card: 255 253 247;
+  --c-tint: 240 236 226;
+  --c-line: 224 218 204;
+  --c-line-strong: 201 193 176;
+  --c-line-focus: 167 156 136;
+  --c-fg: 26 23 18;
+  --c-muted: 107 97 83;
+  --c-dim: 139 129 115;
+
+  /* identity */
+  --c-amber: 180 83 9;
+  --c-amber-hi: 217 119 6;
+  --c-on-amber: 255 250 240;
+
+  /* thermal semantics — only ever used when they mean something */
+  --c-cool: 31 111 168;
+  --c-heat: 194 65 12;
+  --c-ok: 26 127 69;
+  --c-crit: 176 32 32;
+}
+
+.dark {
+  /* chassis — cold cellar */
+  --c-base: 10 12 17;
+  --c-surface: 18 21 29;
+  --c-card: 23 27 38;
+  --c-tint: 32 37 50;
+  --c-line: 34 39 54;
+  --c-line-strong: 44 50 72;
+  --c-line-focus: 58 66 88;
+  --c-fg: 238 240 245;
+  --c-muted: 154 166 188;
+  --c-dim: 115 127 151;
+
+  --c-amber: 240 168 48;
+  --c-amber-hi: 255 200 102;
+  --c-on-amber: 18 16 10;
+
+  --c-cool: 78 168 222;
+  --c-heat: 255 122 69;
+  --c-ok: 62 207 106;
+  --c-crit: 224 86 86;
+}
+
 html,
 body,
 #root {
@@ -9,7 +78,7 @@ body,
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-base text-fg antialiased;
 }
 
 .font-display {

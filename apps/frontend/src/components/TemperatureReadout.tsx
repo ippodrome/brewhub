@@ -43,35 +43,35 @@ export function TemperatureReadout({
   const others = sensors.filter((s) => s !== headline);
 
   return (
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+    <div className="rounded-2xl border border-line bg-card p-6">
       <div className="flex items-center gap-2">
         <span
-          className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-neutral-400 dark:bg-neutral-600"}`}
+          className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-ok shadow-[0_0_6px_rgb(var(--c-ok)/0.6)]" : "bg-dim"}`}
         />
-        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{device.name}</span>
-        {device.chamberName && <span className="text-xs text-neutral-600 dark:text-neutral-500">· {device.chamberName}</span>}
+        <span className="text-sm font-medium text-muted">{device.name}</span>
+        {device.chamberName && <span className="text-xs text-dim">· {device.chamberName}</span>}
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
         {headline && headline.temperatureC !== null ? (
           <>
-            <span className="font-display text-5xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
+            <span className="font-display text-5xl font-semibold tabular-nums text-fg">
               {headline.temperatureC.toFixed(1)}
             </span>
-            <span className="text-xl text-amber-600 dark:text-amber-400">°C</span>
+            <span className="text-xl text-amber">°C</span>
           </>
         ) : (
-          <span className="text-3xl font-medium text-neutral-400 dark:text-neutral-600">No reading</span>
+          <span className="text-3xl font-medium text-dim">No reading</span>
         )}
       </div>
       {headline && (
-        <p className="text-xs text-neutral-400 dark:text-neutral-600">{labelFor(headline.address)}</p>
+        <p className="text-xs text-dim">{labelFor(headline.address)}</p>
       )}
 
       {others.length > 0 && (
-        <div className="mt-3 space-y-1 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+        <div className="mt-3 space-y-1 border-t border-line pt-2">
           {others.map((sensor) => (
-            <div key={sensor.address} className="flex justify-between text-xs text-neutral-600 dark:text-neutral-500">
+            <div key={sensor.address} className="flex justify-between text-xs text-dim">
               <span>{labelFor(sensor.address)}</span>
               <span className="tabular-nums">
                 {sensor.temperatureC !== null ? `${sensor.temperatureC.toFixed(1)}°C` : "—"}
@@ -81,7 +81,7 @@ export function TemperatureReadout({
         </div>
       )}
 
-      <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-500">
+      <p className="mt-2 text-xs text-dim">
         {device.isOnline ? "Online" : "Offline"} · last reading {timeAgo(telemetry?.ts ?? device.lastSeenAt)}
       </p>
 
