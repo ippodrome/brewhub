@@ -9,6 +9,7 @@ import {
 import {
   clearActiveProfile,
   ensureDefaultDeviceConfig,
+  getDeviceConfig,
   setActiveProfile,
   updateDeviceConfig,
 } from "../db/repositories/device-configs.repo.js";
@@ -84,8 +85,35 @@ export async function devicesRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.code(204).send();
   });
 
-  // Implements DECISIONS.md ADR-004: this is the ONLY route that touches a
-  // device's control config, and it only ever publishes declarative,
+  // Read-only counterpart to the PATCH below. Purely a read: it publishes
+  // nothing and so does not weaken ADR-004's "one route touches config"
+  // rule, which is about what may be *sent* to a device.
+  //
+  // Its absence was a real gap — the frontend could write a config it could
+  // never read back, which is why DeviceConfigForm starts at hardcoded
+  // defaults instead of the device's actual values.
+  fastify.get(
+    "/api/devices/:id/config",
+    { preHandler: fastify.verifyAuth },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      if (!getDevice(fastify.db, id)) {
+        return reply.code(404).send({ error: "Device not found" });
+      }
+
+      // A device registered through POST /api/devices always has a config
+      // row, but reporting "Device not found" for one that somehow lacks it
+      // would be an actively wrong answer about a device that plainly
+      // exists. Filling in the defaults keeps the route total and says
+      // something true.
+      ensureDefaultDeviceConfig(fastify.db, id);
+      return reply.send(getDeviceConfig(fastify.db, id));
+    },
+  );
+
+  // Implements DECISIONS.md ADR-004: this is the ONLY route that sends a
+  // device's control config onward, and it only ever publishes declarative,
   // retained MQTT config — never a direct actuator command.
   fastify.patch(
     "/api/devices/:id/config",
