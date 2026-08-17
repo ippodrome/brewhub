@@ -1,4 +1,5 @@
 export * from "./device.js";
+export * from "./control-state.js";
 export * from "./device-config.js";
 export * from "./device-sensor.js";
 export * from "./discovery.js";
