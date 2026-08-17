@@ -21,16 +21,16 @@ function TemperatureCharts({ device }: { device: Device }): JSX.Element {
   });
 
   const sensors = sensorsQuery.data ?? [];
-  if (sensorsQuery.isLoading) return <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading sensors...</p>;
+  if (sensorsQuery.isLoading) return <p className="text-xs text-dim">Loading sensors...</p>;
   if (sensors.length === 0) {
-    return <p className="text-xs text-neutral-600 dark:text-neutral-500">No sensors discovered yet.</p>;
+    return <p className="text-xs text-dim">No sensors discovered yet.</p>;
   }
 
   return (
     <>
       {sensors.map((sensor) => (
         <div key={sensor.address} className="space-y-1">
-          <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{sensor.label ?? shortAddress(sensor.address)}</p>
+          <p className="text-xs font-medium text-muted">{sensor.label ?? shortAddress(sensor.address)}</p>
           <DeviceHistoryChart
             deviceId={device.id}
             metric="temperature"
@@ -56,7 +56,7 @@ function FlowCharts({ device }: { device: Device }): JSX.Element | null {
     <>
       {flowTaps.map((tap) => (
         <div key={tap.id} className="space-y-1">
-          <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{tap.name} (flow {tap.flowIndex})</p>
+          <p className="text-xs font-medium text-muted">{tap.name} (flow {tap.flowIndex})</p>
           <DeviceHistoryChart
             deviceId={device.id}
             metric="flow"
@@ -71,10 +71,10 @@ function FlowCharts({ device }: { device: Device }): JSX.Element | null {
 
 export function DeviceHistoryPanel({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
   return (
-    <div className="mt-3 space-y-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4">
+    <div className="mt-3 space-y-4 rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-200">History</h3>
-        <button onClick={onClose} className="text-xs text-neutral-600 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300">
+        <h3 className="text-sm font-medium text-fg">History</h3>
+        <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>

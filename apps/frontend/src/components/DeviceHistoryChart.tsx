@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { getFlowHistory, getGravityHistory, getTemperatureHistory, getWeightHistory } from "../api/history";
+import { useTheme } from "../theme/ThemeProvider";
 
 export type HistoryMetric = "temperature" | "flow" | "weight" | "gravity";
 
@@ -41,6 +42,15 @@ async function fetchPoints(
   return rows.map((r) => ({ ts: r.ts, value: r.grams }));
 }
 
+// uPlot paints to a canvas, so it can't pick up the colour tokens through a
+// class the way the rest of the UI does — it has to read the resolved custom
+// property itself. The tokens are stored as space-separated RGB channels (see
+// styles/index.css), which `rgb()` accepts verbatim.
+function token(name: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return `rgb(${v})`;
+}
+
 export function DeviceHistoryChart({
   deviceId,
   metric,
@@ -54,6 +64,7 @@ export function DeviceHistoryChart({
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
+  const { theme } = useTheme();
 
   const query = useQuery({
     queryKey: ["history", deviceId, metric, channel],
@@ -69,50 +80,52 @@ export function DeviceHistoryChart({
     return [rows.map((r) => Math.floor(r.ts / 1000)), rows.map((r) => r.value)];
   }, [query.data]);
 
+  // The plot is constructed from whatever data is current at the time, and the
+  // effect below only ever pushes updates — so the latest data has to be
+  // readable during render, before either effect runs.
+  const dataRef = useRef<uPlot.AlignedData>(uplotData);
+  dataRef.current = uplotData;
+
+  // uPlot resolves its colours once, at construction. Rebuilding on a theme
+  // change is what keeps the chart legible in both themes; it happens at most
+  // once per toggle, so the cost is irrelevant.
   useEffect(() => {
     if (!containerRef.current) return;
+    const el = containerRef.current;
+    const axis = { stroke: token("--c-dim"), grid: { stroke: token("--c-line") }, ticks: { stroke: token("--c-line") } };
 
-    if (!plotRef.current) {
-      plotRef.current = new uPlot(
-        {
-          width: containerRef.current.clientWidth || 400,
-          height: CHART_HEIGHT,
-          series: [
-            {},
-            {
-              label,
-              stroke: "#34d399",
-              width: 1.5,
-              points: { show: false },
-            },
-          ],
-          axes: [
-            { stroke: "#525252", grid: { stroke: "#262626" }, ticks: { stroke: "#262626" } },
-            {
-              stroke: "#525252",
-              grid: { stroke: "#262626" },
-              ticks: { stroke: "#262626" },
-              label: unitByMetric[metric],
-            },
-          ],
-          scales: { x: { time: true } },
-          legend: { show: false },
-          cursor: { show: true },
-        },
-        uplotData,
-        containerRef.current,
-      );
-    } else {
-      plotRef.current.setData(uplotData);
-    }
-  }, [uplotData, label, metric]);
+    const plot = new uPlot(
+      {
+        width: el.clientWidth || 400,
+        height: CHART_HEIGHT,
+        series: [
+          {},
+          {
+            label,
+            stroke: token("--c-amber"),
+            width: 1.5,
+            points: { show: false },
+          },
+        ],
+        axes: [axis, { ...axis, label: unitByMetric[metric] }],
+        scales: { x: { time: true } },
+        legend: { show: false },
+        cursor: { show: true },
+      },
+      dataRef.current,
+      el,
+    );
+    plotRef.current = plot;
 
-  useEffect(() => {
     return () => {
-      plotRef.current?.destroy();
+      plot.destroy();
       plotRef.current = null;
     };
-  }, []);
+  }, [theme, label, metric]);
+
+  useEffect(() => {
+    plotRef.current?.setData(uplotData);
+  }, [uplotData]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -128,9 +141,9 @@ export function DeviceHistoryChart({
 
   return (
     <div className="space-y-1">
-      {query.isLoading && <p className="text-xs text-neutral-600 dark:text-neutral-500">Loading history...</p>}
-      {query.isError && <p className="text-xs text-red-600 dark:text-red-400">Could not load history.</p>}
-      {query.data && !hasData && <p className="text-xs text-neutral-600 dark:text-neutral-500">No history yet.</p>}
+      {query.isLoading && <p className="text-xs text-dim">Loading history...</p>}
+      {query.isError && <p className="text-xs text-crit">Could not load history.</p>}
+      {query.data && !hasData && <p className="text-xs text-dim">No history yet.</p>}
       <div ref={containerRef} className="w-full" />
     </div>
   );

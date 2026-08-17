@@ -29,25 +29,25 @@ export function BackupRestore(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4">
+    <div className="space-y-4 rounded-2xl border border-line bg-card p-4">
       <div>
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Backup</p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+        <p className="text-sm font-medium text-muted">Backup</p>
+        <p className="text-xs text-dim">
           Downloads the full application database — devices, taps, profiles, history, settings — as a single file.
         </p>
       </div>
       <button
         onClick={() => downloadMutation.mutate()}
         disabled={downloadMutation.isPending}
-        className="rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400 px-3 py-1.5 text-xs font-medium text-zinc-950 disabled:opacity-50"
+        className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
       >
         {downloadMutation.isPending ? "Preparing..." : "Download backup"}
       </button>
-      {downloadMutation.isError && <p className="text-xs text-red-600 dark:text-red-400">Backup download failed.</p>}
+      {downloadMutation.isError && <p className="text-xs text-crit">Backup download failed.</p>}
 
-      <div className="border-t border-neutral-200 dark:border-neutral-800 pt-4">
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Restore</p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-500">
+      <div className="border-t border-line pt-4">
+        <p className="text-sm font-medium text-muted">Restore</p>
+        <p className="text-xs text-dim">
           Replaces the current database with a previously downloaded backup file.
         </p>
       </div>
@@ -61,17 +61,17 @@ export function BackupRestore(): JSX.Element {
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={restoreMutation.isPending}
-        className="rounded-xl px-3 py-1.5 text-xs text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50"
+        className="rounded-xl px-3 py-1.5 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
       >
         {restoreMutation.isPending ? "Restoring..." : "Restore from backup..."}
       </button>
       {restoreMutation.isError && (
-        <p className="text-xs text-red-600 dark:text-red-400">
+        <p className="text-xs text-crit">
           {restoreMutation.error instanceof Error ? restoreMutation.error.message : "Restore failed."}
         </p>
       )}
       {restoreResult?.ok && (
-        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+        <p className="text-xs text-ok">
           Restore complete. A safety copy of the previous database was saved on the server at{" "}
           <code>{restoreResult.safetyBackup}</code>. Restart the backend now for the restored data to take effect
           (<code>docker compose restart backend</code>, or your process manager's equivalent) — it keeps running on

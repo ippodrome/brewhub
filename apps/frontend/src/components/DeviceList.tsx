@@ -16,10 +16,10 @@ export function DeviceList(): JSX.Element {
   // instead of frozen at whatever it was on page load.
   const { devices: liveDevices } = useLiveTelemetry();
 
-  if (isLoading) return <p className="text-sm text-neutral-600 dark:text-neutral-500">Loading devices...</p>;
-  if (isError) return <p className="text-sm text-red-600 dark:text-red-400">Could not load devices.</p>;
+  if (isLoading) return <p className="text-sm text-dim">Loading devices...</p>;
+  if (isError) return <p className="text-sm text-crit">Could not load devices.</p>;
   if (!devices || devices.length === 0) {
-    return <p className="text-sm text-neutral-600 dark:text-neutral-500">No devices yet. Add one to get started.</p>;
+    return <p className="text-sm text-dim">No devices yet. Add one to get started.</p>;
   }
 
   const merged = devices.map((device) => {
