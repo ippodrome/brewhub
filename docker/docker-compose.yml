@@ -33,7 +33,17 @@ services:
       start_period: 10s
 
   caddy:
-    image: caddy:2
+    # Stock Caddy with the built frontend and the Caddyfile baked in, published
+    # by .github/workflows/publish-frontend-image.yml. Nothing about the app
+    # comes off the host any more — this file plus a .env is the whole
+    # deployment, which is what makes `docker compose pull && up -d` a complete
+    # upgrade on a box with no Node toolchain (Unraid).
+    #
+    # Tagged separately from the backend on purpose: the two workflows have
+    # different path filters, so a frontend-only commit produces a frontend
+    # sha- tag and no matching backend one. Pinning them to a single shared
+    # variable would look tidy and then fail to resolve.
+    image: ghcr.io/ippodrome/brewhub-frontend:${BREWHUB_FRONTEND_TAG:-latest}
     restart: unless-stopped
     depends_on:
       backend:
@@ -56,10 +66,9 @@ services:
       # No icon asset exists yet — omitted rather than pointed at a broken
       # URL. Unraid falls back to a generic Docker icon without one.
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Frontend is built locally (`pnpm --filter @brewhub/frontend build`), not containerized —
-      # Caddy just serves the static output. Run the build before `docker compose up`.
-      - ../apps/frontend/dist:/srv/frontend:ro
+      # Only Caddy's own state. The certificate its internal CA issues lives in
+      # caddy-data, so keeping that volume is what stops every restart from
+      # minting a new cert you have to trust again.
       - caddy-data:/data
       - caddy-config:/config
 

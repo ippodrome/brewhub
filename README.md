@@ -22,10 +22,11 @@ pnpm --filter @brewhub/frontend dev      # BACKEND_PORT=<port> if backend isn't 
 
 `docker-compose.yml` is just `backend` + `caddy` — it does **not** bundle an MQTT broker by default, since plenty of self-hosters (this project's own target deployment included) already run one for other things (Home Assistant, other IoT gear, etc.) and running a second broker would be pure waste. Pick one of the two paths below.
 
-By default `backend` **pulls** a prebuilt image (`ghcr.io/ippodrome/brewhub-backend`, published by `.github/workflows/publish-backend-image.yml` on every push to `main` and on version tags) rather than building from source — nothing to compile on whatever host you're running this on. Pin a specific version instead of always tracking `latest` by setting `BREWHUB_IMAGE_TAG` in `.env` (e.g. to a `sha-xxxxxxx` or a released version tag).
+Both services **pull** prebuilt images rather than building from source, so there is nothing to compile — and no Node toolchain needed — on whatever host you run this on. `backend` pulls `ghcr.io/ippodrome/brewhub-backend`; `caddy` pulls `ghcr.io/ippodrome/brewhub-frontend`, which is stock Caddy with the built frontend and the Caddyfile baked in. Both are published on every push to `main` and on version tags.
+
+Pin a version instead of tracking `latest` with `BREWHUB_IMAGE_TAG` (backend) and `BREWHUB_FRONTEND_TAG` (frontend) in `.env` — a `sha-xxxxxxx` or a released version tag. They are separate variables because the two workflows have separate path filters: a frontend-only commit publishes a frontend `sha-` tag and no matching backend one, so a single shared variable would fail to resolve.
 
 ```
-pnpm --filter @brewhub/frontend build              # Caddy serves this static output directly
 cd docker
 cp .env.example .env                                # then fill in real secrets
 ```
@@ -53,9 +54,15 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 **Unraid**: the `caddy` service carries a `net.unraid.docker.webui` label, so once the stack is running under Unraid's Docker tab (native Compose support on 6.12+, or the community "Docker Compose Manager" plugin on older versions) it gets a proper WebUI button pointing straight at the app — no separate Unraid-specific template needed, the same `docker-compose.yml` works as-is. A traditional Community-Applications-store template (for one-click installs by other people) is a bigger, deliberately deferred step — see DECISIONS.md ADR-017.
 
-Either way, frontend/API end up at `https://localhost:8443` (self-signed cert via Caddy's `tls internal { on_demand }`, since the deployment IP isn't known ahead of time). Port 8443 was chosen instead of 443 because the reference deployment host already runs NginxProxyManager on the standard range — see DECISIONS.md ADR-007.
+Either way, frontend/API end up at `https://localhost:8443` (self-signed cert from Caddy's internal CA, issued up front for whatever you set `BREWHUB_HOST` to — see `docker/caddy/Caddyfile` and DECISIONS.md ADR-024). Port 8443 was chosen instead of 443 because the reference deployment host already runs NginxProxyManager on the standard range — see DECISIONS.md ADR-007.
 
-The Caddyfile is bind-mounted, not baked into the image — if you edit it after the stack is already up, run `docker compose restart caddy` (a plain `docker compose up -d` won't pick up the change on its own, since nothing about the `caddy` *service definition* changed).
+The Caddyfile is baked into the frontend image, not bind-mounted, so that a deployment needs nothing on disk but `docker-compose.yml` and `.env`. Editing it therefore means rebuilding: use the dev overlay (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`), which builds both images from local source.
+
+To upgrade a running deployment to the latest published build:
+
+```
+docker compose pull && docker compose up -d
+```
 
 First login needs a user, created from inside the running backend container:
 

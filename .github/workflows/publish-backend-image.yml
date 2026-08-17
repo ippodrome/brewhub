@@ -13,6 +13,7 @@ on:
       - "apps/backend/**"
       - "packages/shared-types/**"
       - "docker/backend.Dockerfile"
+      - ".dockerignore"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/publish-backend-image.yml"
