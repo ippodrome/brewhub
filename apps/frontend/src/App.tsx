@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { BookOpen, Cpu, LayoutDashboard, LogOut, Settings as SettingsIcon, Thermometer } from "lucide-react";
 import { Dashboard } from "./pages/Dashboard";
+import { DeviceDisplay } from "./pages/DeviceDisplay";
 import { Devices } from "./pages/Devices";
 import { Guide } from "./pages/Guide";
 import { Login } from "./pages/Login";
@@ -110,17 +111,23 @@ function Shell(): JSX.Element {
   );
 }
 
-// A layout route: RequireAuth/WsProvider/Shell mount ONCE and stay mounted
-// across navigation between "/" and "/devices" (only the <Outlet/> content
-// swaps) — critical for WsProvider specifically, since it owns the single
-// WebSocket connection. Nesting it per-route (as a wrapper around each
-// page element) instead would unmount/remount it, and therefore drop and
-// reopen the socket, on every navigation.
+// A layout route: RequireAuth/WsProvider mount ONCE and stay mounted across
+// navigation (only the <Outlet/> content swaps) — critical for WsProvider
+// specifically, since it owns the single WebSocket connection. Nesting it
+// per-route (as a wrapper around each page element) instead would
+// unmount/remount it, and therefore drop and reopen the socket, on every
+// navigation.
+//
+// Shell sits one level further in, as its own layout route, so the display
+// pages can share this WebSocket while rendering none of the app chrome —
+// they are meant to be left open on a screen mounted next to the equipment,
+// where a header and a tab bar are wasted space and an invitation to a
+// mistaken tap.
 function AuthenticatedLayout(): JSX.Element {
   return (
     <RequireAuth>
       <WsProvider>
-        <Shell />
+        <Outlet />
       </WsProvider>
     </RequireAuth>
   );
@@ -131,10 +138,13 @@ export function App(): JSX.Element {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<AuthenticatedLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/devices" element={<Devices />} />
-        <Route path="/guide" element={<Guide />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route element={<Shell />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/devices" element={<Devices />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+        <Route path="/display/:deviceId" element={<DeviceDisplay />} />
       </Route>
     </Routes>
   );

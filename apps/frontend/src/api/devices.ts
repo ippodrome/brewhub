@@ -24,6 +24,11 @@ export async function createDevice(req: CreateDeviceRequest): Promise<Device> {
   return DeviceSchema.parse(response);
 }
 
+export async function getDeviceConfig(deviceId: string): Promise<DeviceConfig> {
+  const response = await apiFetch<unknown>(`/api/devices/${encodeURIComponent(deviceId)}/config`);
+  return DeviceConfigSchema.parse(response);
+}
+
 export async function deleteDevice(id: string): Promise<void> {
   await apiFetch<void>(`/api/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
