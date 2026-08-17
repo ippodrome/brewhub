@@ -27,6 +27,27 @@ https://{$BREWHUB_HOST:localhost}:8443 {
 
 	handle {
 		root * /srv/frontend
+
+		# Vite content-hashes everything under /assets, so those URLs can
+		# never go stale and are safe to cache forever. Everything else —
+		# index.html, sw.js, and every SPA route that gets rewritten to
+		# index.html below — must revalidate, or a deploy leaves browsers
+		# holding an index.html pointing at asset hashes the new build has
+		# already deleted, which shows up as a blank page until a hard
+		# refresh. Caddy sends no Cache-Control of its own, so without this
+		# those responses fall to the browser's heuristic caching.
+		#
+		# The rule is written as "cache /assets, revalidate everything else"
+		# rather than listing index.html explicitly on purpose: `header` runs
+		# before `try_files` in Caddy's directive order, so a request for
+		# /devices is still /devices when the matcher sees it, and a matcher
+		# naming /index.html would never fire for a deep link.
+		@immutable path /assets/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+		@revalidate not path /assets/*
+		header @revalidate Cache-Control "no-cache"
+
 		try_files {path} /index.html
 		file_server
 	}
