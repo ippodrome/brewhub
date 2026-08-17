@@ -1,4 +1,8 @@
-node_modules/
+# No trailing slash: with one, this matches only directories, and a
+# node_modules symlink — the usual way to share an install into a git
+# worktree — slips past it and gets committed. That breaks `pnpm install` on
+# any other checkout, where the link points nowhere.
+node_modules
 dist/
 .pio/
 firmware/**/include/secrets.h
