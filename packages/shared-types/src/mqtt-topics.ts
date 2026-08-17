@@ -1,6 +1,15 @@
 export const TOPIC_PREFIX = "unibrew";
 
-export type TopicKind = "status" | "telemetry" | "state" | "command" | "config" | "ota" | "discovery" | "gravity";
+export type TopicKind =
+  | "status"
+  | "telemetry"
+  | "state"
+  | "decision"
+  | "command"
+  | "config"
+  | "ota"
+  | "discovery"
+  | "gravity";
 
 export function statusTopic(deviceId: string): string {
   return `${TOPIC_PREFIX}/${deviceId}/status`;
@@ -8,6 +17,27 @@ export function statusTopic(deviceId: string): string {
 
 export function telemetryTopic(deviceId: string): string {
   return `${TOPIC_PREFIX}/${deviceId}/telemetry`;
+}
+
+/**
+ * Current control state. Retained: a client that has just connected must know
+ * what the loop is doing without waiting for the next transition.
+ */
+export function stateTopic(deviceId: string): string {
+  return `${TOPIC_PREFIX}/${deviceId}/state`;
+}
+
+/** One message per control decision. Not retained — this is a log. */
+export function decisionTopic(deviceId: string): string {
+  return `${TOPIC_PREFIX}/${deviceId}/decision`;
+}
+
+export function stateWildcardTopic(): string {
+  return `${TOPIC_PREFIX}/+/state`;
+}
+
+export function decisionWildcardTopic(): string {
+  return `${TOPIC_PREFIX}/+/decision`;
 }
 
 export function configTopic(deviceId: string): string {
@@ -62,6 +92,7 @@ const VALID_KINDS: ReadonlySet<string> = new Set<TopicKind>([
   "status",
   "telemetry",
   "state",
+  "decision",
   "command",
   "config",
   "ota",

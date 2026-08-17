@@ -16,6 +16,11 @@ import { insertWeightReading } from "./db/repositories/weight-readings.repo.js";
 import { insertGravityReading } from "./db/repositories/gravity-readings.repo.js";
 import { getDeviceConfig, updateDeviceConfig } from "./db/repositories/device-configs.repo.js";
 import {
+  deleteDecisionsOlderThan,
+  insertDecision,
+  upsertControlState,
+} from "./db/repositories/control-state.repo.js";
+import {
   getSensorOffsets,
   listSensorsForDevice,
   recordSensorSeen,
@@ -197,10 +202,40 @@ async function main(): Promise<void> {
       }
       broadcastToAll({ type: "gravity", payload });
     },
+    onControlState: (payload) => {
+      // A device can publish before it has been registered — its retained
+      // state message arrives the moment the backend subscribes. Dropping it
+      // is right: an unregistered device has no row to hang state off, and
+      // letting the foreign key throw would take the MQTT handler down.
+      if (!getDevice(db, payload.deviceId)) {
+        app.log.debug({ deviceId: payload.deviceId }, "Control state for unknown device, dropping");
+        return;
+      }
+      upsertControlState(db, payload, Date.now());
+    },
+    onControlDecision: (payload) => {
+      if (!getDevice(db, payload.deviceId)) {
+        app.log.debug({ deviceId: payload.deviceId }, "Control decision for unknown device, dropping");
+        return;
+      }
+      insertDecision(db, payload, Date.now());
+    },
   });
 
   app.decorate("mqttClient", mqttClient);
   republishHomeAssistantDiscovery(db, mqttClient);
+
+  // Decisions are a handful an hour, so 90 days costs almost nothing and
+  // covers a full fermentation plus the argument about it afterwards.
+  const DECISION_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+  const decisionSweep = setInterval(
+    () => {
+      const removed = deleteDecisionsOlderThan(db, Date.now() - DECISION_RETENTION_MS);
+      if (removed > 0) app.log.info({ removed }, "Expired old control decisions");
+    },
+    24 * 60 * 60 * 1000,
+  );
+  decisionSweep.unref();
 
   startPresenceSweep({
     db,

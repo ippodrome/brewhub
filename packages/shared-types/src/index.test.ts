@@ -26,6 +26,12 @@ import {
   UpdateTapRequestSchema,
   WeightReadingSchema,
   WsMessageSchema,
+  ControlStatePayloadSchema,
+  ControlDecisionPayloadSchema,
+  stateTopic,
+  decisionTopic,
+  stateWildcardTopic,
+  decisionWildcardTopic,
   parseTopic,
   statusTopic,
   telemetryTopic,
@@ -817,5 +823,80 @@ describe("NotificationSettingsSchema / UpdateNotificationSettingsRequestSchema",
 
   it("accepts explicitly clearing a field with null", () => {
     expect(UpdateNotificationSettingsRequestSchema.safeParse({ telegramBotToken: null }).success).toBe(true);
+  });
+});
+
+describe("control state and decisions", () => {
+  const STATE = {
+    deviceId: "fermenter-01",
+    output: "cooling",
+    sinceMs: 134000,
+    setpointC: 19,
+    mode: "thermostat",
+    controlTempC: 19.42,
+  };
+
+  const DECISION = {
+    deviceId: "fermenter-01",
+    kind: "transition",
+    from: "idle",
+    to: "cooling",
+    reason: "above_deadband",
+    temperatureC: 19.42,
+    thresholdC: 19.2,
+    elapsedMs: 372000,
+    remainingMs: 0,
+  };
+
+  it("builds the state and decision topics", () => {
+    expect(stateTopic("fermenter-01")).toBe("unibrew/fermenter-01/state");
+    expect(decisionTopic("fermenter-01")).toBe("unibrew/fermenter-01/decision");
+    expect(stateWildcardTopic()).toBe("unibrew/+/state");
+    expect(decisionWildcardTopic()).toBe("unibrew/+/decision");
+  });
+
+  it("parses both new topics", () => {
+    expect(parseTopic("unibrew/fermenter-01/state")).toEqual({ deviceId: "fermenter-01", kind: "state" });
+    expect(parseTopic("unibrew/fermenter-01/decision")).toEqual({
+      deviceId: "fermenter-01",
+      kind: "decision",
+    });
+  });
+
+  it("accepts a well-formed state payload", () => {
+    expect(ControlStatePayloadSchema.parse(STATE).output).toBe("cooling");
+  });
+
+  // A faulted or missing probe still has to produce a valid state message -
+  // "I do not know the temperature" is itself worth reporting.
+  it("allows a null control temperature", () => {
+    expect(ControlStatePayloadSchema.parse({ ...STATE, controlTempC: null }).controlTempC).toBeNull();
+  });
+
+  it("rejects an unknown output rather than passing it through", () => {
+    expect(() => ControlStatePayloadSchema.parse({ ...STATE, output: "defrosting" })).toThrow();
+  });
+
+  it("accepts a transition decision", () => {
+    expect(ControlDecisionPayloadSchema.parse(DECISION).reason).toBe("above_deadband");
+  });
+
+  it("accepts a blocked decision with time left on the timer", () => {
+    const parsed = ControlDecisionPayloadSchema.parse({
+      ...DECISION,
+      kind: "blocked",
+      reason: "min_off_not_met",
+      remainingMs: 221000,
+    });
+    expect(parsed.kind).toBe("blocked");
+    expect(parsed.remainingMs).toBe(221000);
+  });
+
+  it("rejects an unknown reason", () => {
+    expect(() => ControlDecisionPayloadSchema.parse({ ...DECISION, reason: "vibes" })).toThrow();
+  });
+
+  it("rejects a negative duration", () => {
+    expect(() => ControlDecisionPayloadSchema.parse({ ...DECISION, elapsedMs: -1 })).toThrow();
   });
 });
