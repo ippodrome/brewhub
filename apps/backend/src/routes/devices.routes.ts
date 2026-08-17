@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { CreateDeviceRequestSchema, TriggerOtaRequestSchema, UpdateDeviceConfigRequestSchema } from "@brewhub/shared-types";
 import {
@@ -13,6 +14,7 @@ import {
   setActiveProfile,
   updateDeviceConfig,
 } from "../db/repositories/device-configs.repo.js";
+import { listDecisions } from "../db/repositories/control-state.repo.js";
 import { getFirmwareBuild } from "../db/repositories/firmware-builds.repo.js";
 import { createOtaToken } from "../db/repositories/ota-tokens.repo.js";
 import { getProfile } from "../db/repositories/profiles.repo.js";
@@ -170,6 +172,32 @@ export async function devicesRoutes(fastify: FastifyInstance): Promise<void> {
       publishDeviceConfig(fastify.mqttClient, id, config);
 
       return reply.send(config);
+    },
+  );
+
+  // The decision log. Read-only history; §8 asks for every control decision
+  // to be kept for later analysis, and this is how anything gets at it.
+  fastify.get(
+    "/api/devices/:id/decisions",
+    { preHandler: fastify.verifyAuth },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      if (!getDevice(fastify.db, id)) {
+        return reply.code(404).send({ error: "Device not found" });
+      }
+
+      // Capped rather than trusted. A wall display reconnecting with
+      // ?limit=999999 would otherwise pull the whole table across the wire
+      // every time its socket blipped.
+      const parsed = z
+        .object({ limit: z.coerce.number().int().positive().max(200).default(50) })
+        .safeParse(request.query);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Invalid limit" });
+      }
+
+      return reply.send(listDecisions(fastify.db, id, parsed.data.limit));
     },
   );
 

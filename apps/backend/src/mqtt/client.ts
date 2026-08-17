@@ -1,12 +1,23 @@
 import mqtt, { type MqttClient } from "mqtt";
 import {
+  ControlDecisionPayloadSchema,
+  ControlStatePayloadSchema,
+  decisionWildcardTopic,
   DiscoveryMessageSchema,
   GravityTelemetryPayloadSchema,
   parseTopic,
+  stateWildcardTopic,
   StatusPayloadSchema,
   TelemetryPayloadSchema,
 } from "@brewhub/shared-types";
-import type { DiscoveryMessage, GravityTelemetryPayload, StatusPayload, TelemetryPayload } from "@brewhub/shared-types";
+import type {
+  ControlDecisionPayload,
+  ControlStatePayload,
+  DiscoveryMessage,
+  GravityTelemetryPayload,
+  StatusPayload,
+  TelemetryPayload,
+} from "@brewhub/shared-types";
 import type { FastifyBaseLogger } from "fastify";
 
 export interface MqttClientOptions {
@@ -18,6 +29,8 @@ export interface MqttClientOptions {
   onTelemetry: (payload: TelemetryPayload) => void;
   onDiscovery: (message: DiscoveryMessage) => void;
   onGravity: (payload: GravityTelemetryPayload) => void;
+  onControlState: (payload: ControlStatePayload) => void;
+  onControlDecision: (payload: ControlDecisionPayload) => void;
 }
 
 export function createMqttClient(options: MqttClientOptions): MqttClient {
@@ -28,10 +41,20 @@ export function createMqttClient(options: MqttClientOptions): MqttClient {
   });
 
   client.on("connect", () => {
-    options.logger.info("MQTT connected, subscribing to status/telemetry/discovery/gravity topics");
-    client.subscribe(["unibrew/+/status", "unibrew/+/telemetry", "unibrew/+/discovery", "unibrew/+/gravity"], (err) => {
-      if (err) options.logger.error({ err }, "MQTT subscribe failed");
-    });
+    options.logger.info("MQTT connected, subscribing to device topics");
+    client.subscribe(
+      [
+        "unibrew/+/status",
+        "unibrew/+/telemetry",
+        "unibrew/+/discovery",
+        "unibrew/+/gravity",
+        stateWildcardTopic(),
+        decisionWildcardTopic(),
+      ],
+      (err) => {
+        if (err) options.logger.error({ err }, "MQTT subscribe failed");
+      },
+    );
   });
 
   client.on("reconnect", () => options.logger.warn("MQTT reconnecting..."));
@@ -77,6 +100,20 @@ export function createMqttClient(options: MqttClientOptions): MqttClient {
         return;
       }
       options.onGravity(parsed.data);
+    } else if (parsedTopic.kind === "state") {
+      const parsed = ControlStatePayloadSchema.safeParse(json);
+      if (!parsed.success) {
+        options.logger.warn({ topic, error: parsed.error.flatten() }, "Invalid control state payload, dropping");
+        return;
+      }
+      options.onControlState(parsed.data);
+    } else if (parsedTopic.kind === "decision") {
+      const parsed = ControlDecisionPayloadSchema.safeParse(json);
+      if (!parsed.success) {
+        options.logger.warn({ topic, error: parsed.error.flatten() }, "Invalid control decision payload, dropping");
+        return;
+      }
+      options.onControlDecision(parsed.data);
     }
   });
 
