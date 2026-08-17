@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getDeviceConfig } from "../api/devices";
 import { listSensors } from "../api/sensors";
-import { TapVolumeSummary } from "../components/TapVolumeSummary";
+import { TapWall } from "../components/TapWall";
 import { TemperatureBand, type BandMarker } from "../components/TemperatureBand";
 import { useWakeLock } from "../hooks/useWakeLock";
 import { freshnessOf } from "../lib/freshness";
@@ -149,8 +149,8 @@ export function DeviceDisplay(): JSX.Element {
       )}
 
       {device.type === "kegerator" && (
-        <div className="mt-8 text-lg">
-          <TapVolumeSummary device={device} />
+        <div className="mt-8">
+          <TapWall device={device} />
         </div>
       )}
 
