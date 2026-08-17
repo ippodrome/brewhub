@@ -216,6 +216,16 @@ void test_records_blocked_when_min_on_not_met(void) {
     TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.currentOutput());
 }
 
+
+// The state report needs "how long has it been doing this", which it derives
+// from this against its own clock.
+void test_exposes_when_the_output_last_changed(void) {
+    ControlLoop loop;
+    TEST_ASSERT_EQUAL_UINT32(0, loop.lastTransitionMs());
+    loop.update(21.0f, 7000);
+    TEST_ASSERT_EQUAL_UINT32(7000, loop.lastTransitionMs());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_no_decision_pending_on_a_fresh_loop);
@@ -231,5 +241,6 @@ int main(int, char**) {
     RUN_TEST(test_records_blocked_when_min_off_not_met);
     RUN_TEST(test_a_continuing_block_is_reported_once);
     RUN_TEST(test_records_blocked_when_min_on_not_met);
+    RUN_TEST(test_exposes_when_the_output_last_changed);
     return UNITY_END();
 }

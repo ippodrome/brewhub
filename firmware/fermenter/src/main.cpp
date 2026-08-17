@@ -4,6 +4,7 @@
 #include <esp_task_wdt.h>
 
 #include "ControlLoop.h"
+#include "DecisionBuffer.h"
 #include "SensorManager.h"
 #include "SensorAddress.h"
 #include "ConfigStore.h"
@@ -279,6 +280,94 @@ void connectWiFi() {
     }
 }
 
+// Decisions made while MQTT is down are exactly the ones worth reading
+// afterwards, since the loop keeps controlling regardless (ADR-004).
+unibrew::DecisionBuffer decisionBuffer;
+uint32_t lastControlStateMs = 0;
+constexpr uint32_t kControlStateIntervalMs = 30000;
+
+const char* outputName(ControlOutput o) {
+    switch (o) {
+        case ControlOutput::HEATING: return "heating";
+        case ControlOutput::COOLING: return "cooling";
+        default:                     return "idle";
+    }
+}
+
+const char* modeName(unibrew::ControlMode m) {
+    switch (m) {
+        case unibrew::ControlMode::OFF: return "off";
+        case unibrew::ControlMode::PID: return "pid";
+        default:                        return "thermostat";
+    }
+}
+
+const char* reasonName(unibrew::DecisionReason r) {
+    switch (r) {
+        case unibrew::DecisionReason::ABOVE_DEADBAND:       return "above_deadband";
+        case unibrew::DecisionReason::BELOW_DEADBAND:       return "below_deadband";
+        case unibrew::DecisionReason::WITHIN_DEADBAND:      return "within_deadband";
+        case unibrew::DecisionReason::PID_WINDOW:           return "pid_window";
+        case unibrew::DecisionReason::MIN_ON_NOT_MET:       return "min_on_not_met";
+        case unibrew::DecisionReason::MIN_OFF_NOT_MET:      return "min_off_not_met";
+        case unibrew::DecisionReason::SENSOR_FAULT:         return "sensor_fault";
+        case unibrew::DecisionReason::MODE_OFF:             return "mode_off";
+        case unibrew::DecisionReason::POLARITY_FORCED_IDLE: return "polarity_forced_idle";
+    }
+    return "within_deadband";
+}
+
+void publishControlState(float controlTemperatureC, uint32_t now) {
+    JsonDocument doc;
+    doc["deviceId"] = DEVICE_ID;
+    doc["output"] = outputName(controlLoop.currentOutput());
+    doc["sinceMs"] = static_cast<uint32_t>(now - controlLoop.lastTransitionMs());
+    doc["setpointC"] = controlLoop.config().setpointC;
+    doc["mode"] = modeName(controlLoop.config().mode);
+    if (isnan(controlTemperatureC)) {
+        doc["controlTempC"] = nullptr;
+    } else {
+        doc["controlTempC"] = controlTemperatureC;
+    }
+
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    mqttClient.publishControlState(buf);
+}
+
+bool publishDecision(const unibrew::ControlDecision& d) {
+    JsonDocument doc;
+    doc["deviceId"] = DEVICE_ID;
+    doc["kind"] = (d.kind == unibrew::DecisionKind::BLOCKED) ? "blocked" : "transition";
+    doc["from"] = outputName(d.from);
+    doc["to"] = outputName(d.to);
+    doc["reason"] = reasonName(d.reason);
+    doc["temperatureC"] = d.temperatureC;
+    doc["thresholdC"] = d.thresholdC;
+    doc["elapsedMs"] = d.elapsedMs;
+    doc["remainingMs"] = d.remainingMs;
+
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    return mqttClient.publishDecision(buf);
+}
+
+// Sends at most a few per iteration: the watchdog is fed once per loop, and
+// a full buffer flushed in one go could outrun it on a slow link.
+void drainDecisionBuffer() {
+    constexpr size_t kMaxPerIteration = 4;
+    for (size_t i = 0; i < kMaxPerIteration && decisionBuffer.size() > 0; i++) {
+        unibrew::ControlDecision buffered;
+        if (!decisionBuffer.pop(buffered)) {
+            return;
+        }
+        if (!publishDecision(buffered)) {
+            decisionBuffer.push(buffered);   // put it back and try again later
+            return;
+        }
+    }
+}
+
 void publishTelemetry(const SensorSample* samples, size_t count) {
     JsonDocument doc;
     doc["deviceId"] = DEVICE_ID;
@@ -370,6 +459,28 @@ void loop() {
         ControlOutput output = controlLoop.update(controlTemperatureC, now);
         applyRelayOutput(output);
         publishTelemetry(samples, count);
+
+        // A decision is worth reporting the moment it happens, not on the
+        // next 30 s tick — the whole point of the state topic is that the UI
+        // is never behind on what the compressor is doing.
+        unibrew::ControlDecision decision;
+        if (controlLoop.takeDecision(decision)) {
+            if (!publishDecision(decision)) {
+                decisionBuffer.push(decision);
+            }
+            publishControlState(controlTemperatureC, now);
+            lastControlStateMs = now;
+        } else if (now - lastControlStateMs >= kControlStateIntervalMs) {
+            publishControlState(controlTemperatureC, now);
+            lastControlStateMs = now;
+        }
+    }
+
+    // Whatever accumulated while the link was down goes out once it is back.
+    // Driven from the connection state rather than a reconnect event, since
+    // the wrapper reconnects internally and does not surface one.
+    if (mqttClient.connected() && decisionBuffer.size() > 0) {
+        drainDecisionBuffer();
     }
 
     if (now - lastStatusMs >= kStatusIntervalMs) {

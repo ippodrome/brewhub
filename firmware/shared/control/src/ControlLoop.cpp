@@ -70,6 +70,11 @@ bool ControlLoop::isValidReading(float temperatureC)
     return true;
 }
 
+uint32_t ControlLoop::lastTransitionMs() const
+{
+    return lastTransitionMs_;
+}
+
 bool ControlLoop::takeDecision(ControlDecision& out)
 {
     if (!hasPendingDecision_) {

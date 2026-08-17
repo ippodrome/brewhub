@@ -44,6 +44,16 @@ public:
     // not state to replay on reconnect.
     void publishGravity(const char* json);
 
+    // Current control state — retained, like status. A client that has just
+    // connected has to know whether the compressor is running without waiting
+    // for the next transition, which may be hours away.
+    void publishControlState(const char* json);
+
+    // One control decision. Not retained: this is a log, and a retained log
+    // would replay a single stale entry forever. Returns false when the
+    // publish did not go out, which is the caller's signal to buffer it.
+    bool publishDecision(const char* json);
+
 private:
     WiFiClient wifiClient_;
     PubSubClient mqtt_{wifiClient_};
@@ -55,6 +65,8 @@ private:
     String otaTopic_;
     String discoveryTopic_;
     String gravityTopic_;
+    String stateTopic_;
+    String decisionTopic_;
     String discoveryPayload_;
     String username_;
     String password_;

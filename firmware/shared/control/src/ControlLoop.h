@@ -76,6 +76,10 @@ public:
     ControlOutput update(float temperatureC, uint32_t nowMs);
     ControlOutput currentOutput() const;
 
+    // When the output last changed, on this loop's own clock. The state
+    // report turns it into a duration; nothing here is a wall-clock time.
+    uint32_t lastTransitionMs() const;
+
     // Forces IDLE and arms BOTH min-off timers, unconditionally — including
     // when already IDLE, which is the whole point.
     //

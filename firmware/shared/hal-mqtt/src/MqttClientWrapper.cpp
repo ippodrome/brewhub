@@ -17,6 +17,8 @@ void MqttClientWrapper::begin(const char* host, uint16_t port, const char* usern
     otaTopic_ = String("unibrew/") + deviceId_ + "/ota";
     discoveryTopic_ = String("unibrew/") + deviceId_ + "/discovery";
     gravityTopic_ = String("unibrew/") + deviceId_ + "/gravity";
+    stateTopic_ = String("unibrew/") + deviceId_ + "/state";
+    decisionTopic_ = String("unibrew/") + deviceId_ + "/decision";
 
     JsonDocument lwtDoc;
     lwtDoc["deviceId"] = deviceId_;
@@ -92,6 +94,14 @@ void MqttClientWrapper::publishStatus(const char* json) {
 
 void MqttClientWrapper::publishGravity(const char* json) {
     mqtt_.publish(gravityTopic_.c_str(), json, false);
+}
+
+void MqttClientWrapper::publishControlState(const char* json) {
+    mqtt_.publish(stateTopic_.c_str(), json, true);
+}
+
+bool MqttClientWrapper::publishDecision(const char* json) {
+    return mqtt_.publish(decisionTopic_.c_str(), json, false);
 }
 
 void MqttClientWrapper::handleMessage(char* topic, uint8_t* payload, unsigned int length) {
