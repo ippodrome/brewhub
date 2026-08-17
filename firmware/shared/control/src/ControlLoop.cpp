@@ -42,6 +42,11 @@ ControlOutput ControlLoop::currentOutput() const
 
 void ControlLoop::forceIdleAndArmMinOff(uint32_t nowMs)
 {
+    if (output_ != ControlOutput::IDLE) {
+        recordDecision(DecisionKind::TRANSITION, ControlOutput::IDLE,
+                       DecisionReason::POLARITY_FORCED_IDLE, lastReadingC_, config_.setpointC,
+                       nowMs, 0);
+    }
     output_ = ControlOutput::IDLE;
     lastTransitionMs_ = nowMs;
     heatingLastOffMs_ = nowMs;
@@ -63,6 +68,49 @@ bool ControlLoop::isValidReading(float temperatureC)
         return false;
     }
     return true;
+}
+
+bool ControlLoop::takeDecision(ControlDecision& out)
+{
+    if (!hasPendingDecision_) {
+        return false;
+    }
+    out = pendingDecision_;
+    hasPendingDecision_ = false;
+    return true;
+}
+
+void ControlLoop::recordDecision(DecisionKind kind, ControlOutput to, DecisionReason reason,
+                                 float temperatureC, float thresholdC, uint32_t nowMs,
+                                 uint32_t remainingMs)
+{
+    // Reads output_ and lastTransitionMs_, so every caller must invoke this
+    // BEFORE transitionTo updates them.
+    pendingDecision_.kind = kind;
+    pendingDecision_.from = output_;
+    pendingDecision_.to = to;
+    pendingDecision_.reason = reason;
+    pendingDecision_.temperatureC = temperatureC;
+    pendingDecision_.thresholdC = thresholdC;
+    pendingDecision_.elapsedMs = nowMs - lastTransitionMs_;
+    pendingDecision_.remainingMs = remainingMs;
+    hasPendingDecision_ = true;
+}
+
+uint32_t ControlLoop::minOnRemainingMs(uint32_t nowMs) const
+{
+    const uint32_t held = nowMs - lastTransitionMs_;
+    return held >= config_.minOnTimeMs ? 0u : config_.minOnTimeMs - held;
+}
+
+uint32_t ControlLoop::minOffRemainingMs(uint32_t nowMs, ControlOutput desired) const
+{
+    const uint32_t lastOff = (desired == ControlOutput::HEATING) ? heatingLastOffMs_ : coolingLastOffMs_;
+    if (lastOff == std::numeric_limits<uint32_t>::max()) {
+        return 0; // never run, so nothing to wait for
+    }
+    const uint32_t idle = nowMs - lastOff;
+    return idle >= config_.minOffTimeMs ? 0u : config_.minOffTimeMs - idle;
 }
 
 bool ControlLoop::canLeaveActive(uint32_t nowMs) const
@@ -106,9 +154,10 @@ void ControlLoop::transitionTo(ControlOutput next, uint32_t nowMs)
 
     output_ = next;
     lastTransitionMs_ = nowMs;
+    hasReportedBlock_ = false;
 }
 
-ControlOutput ControlLoop::desiredThermostat(float temperatureC) const
+ControlOutput ControlLoop::desiredThermostat(float temperatureC)
 {
     const float low  = config_.setpointC - config_.hysteresisC;
     const float high = config_.setpointC + config_.hysteresisC;
@@ -116,13 +165,22 @@ ControlOutput ControlLoop::desiredThermostat(float temperatureC) const
     // Classic hysteresis: inside the deadband, hold whatever output_ already is.
     ControlOutput desired = output_;
 
+    // Stash what drove this so applyDesired can record it without recomputing.
+    lastReadingC_ = temperatureC;
+    lastThresholdC_ = config_.setpointC;
+    lastDesiredReason_ = DecisionReason::WITHIN_DEADBAND;
+
     if (temperatureC > high) {
+        lastThresholdC_ = high;
+        lastDesiredReason_ = DecisionReason::ABOVE_DEADBAND;
         if (config_.coolingEnabled) {
             desired = ControlOutput::COOLING;
         } else if (output_ == ControlOutput::HEATING) {
             desired = ControlOutput::IDLE;
         }
     } else if (temperatureC < low) {
+        lastThresholdC_ = low;
+        lastDesiredReason_ = DecisionReason::BELOW_DEADBAND;
         if (config_.heatingEnabled) {
             desired = ControlOutput::HEATING;
         } else if (output_ == ControlOutput::COOLING) {
@@ -165,6 +223,30 @@ ControlOutput ControlLoop::desiredPid(float temperatureC, uint32_t nowMs)
     return (elapsedInWindow < pidWindowOnDurationMs_) ? pidWindowDirection_ : ControlOutput::IDLE;
 }
 
+void ControlLoop::recordTransition(ControlOutput to, uint32_t nowMs)
+{
+    if (to == output_) {
+        return;
+    }
+    recordDecision(DecisionKind::TRANSITION, to, lastDesiredReason_, lastReadingC_,
+                   lastThresholdC_, nowMs, 0);
+}
+
+void ControlLoop::reportBlocked(ControlOutput desired, DecisionReason reason, uint32_t nowMs,
+                                uint32_t remainingMs)
+{
+    // Only on the edge. The condition stays true for as long as the timer
+    // runs, and one decision per loop iteration would be hundreds of
+    // identical messages saying the same thing.
+    if (hasReportedBlock_ && blockedRequest_ == desired) {
+        return;
+    }
+    recordDecision(DecisionKind::BLOCKED, desired, reason, lastReadingC_, lastThresholdC_, nowMs,
+                   remainingMs);
+    blockedRequest_ = desired;
+    hasReportedBlock_ = true;
+}
+
 void ControlLoop::applyDesired(ControlOutput desired, uint32_t nowMs)
 {
     // Leaving HEATING or COOLING → IDLE (or switching sides via IDLE conceptually):
@@ -175,33 +257,41 @@ void ControlLoop::applyDesired(ControlOutput desired, uint32_t nowMs)
 
     if (output_ == ControlOutput::HEATING || output_ == ControlOutput::COOLING) {
         if (!canLeaveActive(nowMs)) {
+            reportBlocked(desired, DecisionReason::MIN_ON_NOT_MET, nowMs, minOnRemainingMs(nowMs));
             return; // hold until min-on elapsed
         }
     }
 
     if (desired == ControlOutput::HEATING) {
         if (!canEnterHeating(nowMs)) {
+            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
+                          minOffRemainingMs(nowMs, desired));
             if (output_ != ControlOutput::IDLE) {
                 transitionTo(ControlOutput::IDLE, nowMs);
             }
             return;
         }
+        recordTransition(ControlOutput::HEATING, nowMs);
         transitionTo(ControlOutput::HEATING, nowMs);
         return;
     }
 
     if (desired == ControlOutput::COOLING) {
         if (!canEnterCooling(nowMs)) {
+            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
+                          minOffRemainingMs(nowMs, desired));
             if (output_ != ControlOutput::IDLE) {
                 transitionTo(ControlOutput::IDLE, nowMs);
             }
             return;
         }
+        recordTransition(ControlOutput::COOLING, nowMs);
         transitionTo(ControlOutput::COOLING, nowMs);
         return;
     }
 
     // desired == IDLE
+    recordTransition(ControlOutput::IDLE, nowMs);
     transitionTo(ControlOutput::IDLE, nowMs);
 }
 
@@ -210,6 +300,8 @@ ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
     // Mode OFF: always idle, ignore temperature and timing.
     if (config_.mode == ControlMode::OFF) {
         if (output_ != ControlOutput::IDLE) {
+            recordDecision(DecisionKind::TRANSITION, ControlOutput::IDLE, DecisionReason::MODE_OFF,
+                           temperatureC, config_.setpointC, nowMs, 0);
             transitionTo(ControlOutput::IDLE, nowMs);
         }
         // Clear invalid streak tracking while off — not running actuators blind.
@@ -226,6 +318,8 @@ ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)
         if (invalidDuration > kSensorFaultTimeoutMs) {
             // Fail-safe: force IDLE after prolonged sensor fault.
             if (output_ != ControlOutput::IDLE) {
+                recordDecision(DecisionKind::TRANSITION, ControlOutput::IDLE, DecisionReason::SENSOR_FAULT,
+                               temperatureC, config_.setpointC, nowMs, 0);
                 transitionTo(ControlOutput::IDLE, nowMs);
             }
         }
