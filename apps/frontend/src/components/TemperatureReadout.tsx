@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { Maximize2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Device, TelemetryPayload } from "@brewhub/shared-types";
 import { listSensors } from "../api/sensors";
@@ -50,6 +52,17 @@ export function TemperatureReadout({
         />
         <span className="text-sm font-medium text-muted">{device.name}</span>
         {device.chamberName && <span className="text-xs text-dim">· {device.chamberName}</span>}
+        <span className="flex-1" />
+        {/* The way you first reach a device's display page; after that it is
+            a bookmark on whatever screen lives next to the equipment. */}
+        <Link
+          to={`/display/${encodeURIComponent(device.id)}`}
+          aria-label={`Open ${device.name} display view`}
+          title="Open display view"
+          className="rounded-lg p-1 text-dim hover:bg-tint hover:text-fg"
+        >
+          <Maximize2 className="h-3.5 w-3.5" strokeWidth={2} />
+        </Link>
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
