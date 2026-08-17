@@ -154,6 +154,68 @@ void test_records_forced_idle_from_polarity_change(void) {
     TEST_ASSERT_EQUAL(DecisionReason::POLARITY_FORCED_IDLE, d.reason);
 }
 
+
+// A block is only reachable once the device has run that output before -
+// coolingLastOffMs_ starts at "never", so the very first start is free.
+void test_records_blocked_when_min_off_not_met(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 600000;   // 10 min
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);    // first cool, allowed
+    loop.takeDecision(ignored);
+    loop.update(19.4f, 2000);    // stops, arms min-off
+    loop.takeDecision(ignored);
+
+    loop.update(21.0f, 3000);    // wants to cool again, refused
+    ControlDecision d;
+    TEST_ASSERT_TRUE(loop.takeDecision(d));
+    TEST_ASSERT_EQUAL(DecisionKind::BLOCKED, d.kind);
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, d.to);
+    TEST_ASSERT_EQUAL(DecisionReason::MIN_OFF_NOT_MET, d.reason);
+    TEST_ASSERT_EQUAL_UINT32(599000, d.remainingMs);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.currentOutput());
+}
+
+void test_a_continuing_block_is_reported_once(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 600000;
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);
+    loop.takeDecision(ignored);
+    loop.update(19.4f, 2000);
+    loop.takeDecision(ignored);
+
+    loop.update(21.0f, 3000);
+    TEST_ASSERT_TRUE(loop.takeDecision(ignored));
+    loop.update(21.0f, 4000);
+    loop.update(21.0f, 5000);
+    TEST_ASSERT_FALSE(loop.takeDecision(ignored));
+}
+
+void test_records_blocked_when_min_on_not_met(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 600000;
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);              // cooling starts
+    loop.takeDecision(ignored);
+
+    loop.update(19.4f, 2000);              // wants idle, min-on holds it
+    ControlDecision d;
+    TEST_ASSERT_TRUE(loop.takeDecision(d));
+    TEST_ASSERT_EQUAL(DecisionKind::BLOCKED, d.kind);
+    TEST_ASSERT_EQUAL(DecisionReason::MIN_ON_NOT_MET, d.reason);
+    TEST_ASSERT_EQUAL_UINT32(599000, d.remainingMs);
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, loop.currentOutput());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_no_decision_pending_on_a_fresh_loop);
@@ -166,5 +228,8 @@ int main(int, char**) {
     RUN_TEST(test_records_mode_off);
     RUN_TEST(test_records_sensor_fault_after_timeout);
     RUN_TEST(test_records_forced_idle_from_polarity_change);
+    RUN_TEST(test_records_blocked_when_min_off_not_met);
+    RUN_TEST(test_a_continuing_block_is_reported_once);
+    RUN_TEST(test_records_blocked_when_min_on_not_met);
     return UNITY_END();
 }
