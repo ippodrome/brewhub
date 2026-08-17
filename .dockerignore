@@ -1,0 +1,25 @@
+# Both images build from source inside the container, so anything generated
+# on the host is dead weight in the build context — node_modules alone runs
+# to hundreds of megabytes and was being uploaded to the daemon on every
+# local build.
+node_modules
+**/node_modules
+**/dist
+.pio
+**/.pio
+
+.git
+.github
+firmware
+docs
+*.md
+
+*.db
+*.db-wal
+*.db-shm
+.env
+**/*.log
+**/*.tsbuildinfo
+.DS_Store
+.vscode
+.claude

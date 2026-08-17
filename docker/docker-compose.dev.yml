@@ -1,5 +1,5 @@
-# Overlay for building the backend from local source instead of pulling the
-# published image — use when testing uncommitted changes:
+# Overlay for building both images from local source instead of pulling the
+# published ones — use when testing uncommitted changes:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
@@ -16,3 +16,11 @@ services:
     build:
       context: ..
       dockerfile: docker/backend.Dockerfile
+
+  # This is also the loop for editing the Caddyfile now that it is baked into
+  # the image rather than bind-mounted: edit it, then `up --build`, instead of
+  # the `restart caddy` that used to be enough.
+  caddy:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
