@@ -320,7 +320,7 @@ const char* reasonName(unibrew::DecisionReason r) {
         case unibrew::DecisionReason::MODE_OFF:             return "mode_off";
         case unibrew::DecisionReason::POLARITY_FORCED_IDLE: return "polarity_forced_idle";
     }
-    return "within_deadband";
+    // Exhaustive: a new enumerator is a compile error, not a silent lie.
 }
 
 void publishControlState(float controlTemperatureC, uint32_t now) {
@@ -330,10 +330,11 @@ void publishControlState(float controlTemperatureC, uint32_t now) {
     doc["sinceMs"] = static_cast<uint32_t>(now - controlLoop.lastTransitionMs());
     doc["setpointC"] = controlLoop.config().setpointC;
     doc["mode"] = modeName(controlLoop.config().mode);
+    const float offset = controlLoop.config().controlSensorOffsetC;
     if (isnan(controlTemperatureC)) {
         doc["controlTempC"] = nullptr;
     } else {
-        doc["controlTempC"] = controlTemperatureC;
+        doc["controlTempC"] = controlTemperatureC + offset;
     }
 
     char buf[256];
