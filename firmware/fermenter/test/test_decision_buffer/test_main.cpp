@@ -105,6 +105,34 @@ void test_a_partial_drain_leaves_the_rest_in_order(void) {
     TEST_ASSERT_EQUAL_UINT32(2, out.elapsedMs);
 }
 
+void test_peek_does_not_consume(void) {
+    DecisionBuffer buf;
+    buf.push(make(1));
+    buf.push(make(2));
+    buf.push(make(3));
+
+    ControlDecision out;
+    TEST_ASSERT_TRUE(buf.peek(out));
+    TEST_ASSERT_EQUAL_UINT32(1, out.elapsedMs);
+    TEST_ASSERT_EQUAL_UINT32(3, buf.size());
+
+    TEST_ASSERT_TRUE(buf.peek(out));
+    TEST_ASSERT_EQUAL_UINT32(1, out.elapsedMs);
+
+    TEST_ASSERT_TRUE(buf.pop(out));
+    TEST_ASSERT_EQUAL_UINT32(1, out.elapsedMs);
+    TEST_ASSERT_TRUE(buf.pop(out));
+    TEST_ASSERT_EQUAL_UINT32(2, out.elapsedMs);
+    TEST_ASSERT_TRUE(buf.pop(out));
+    TEST_ASSERT_EQUAL_UINT32(3, out.elapsedMs);
+}
+
+void test_peek_on_empty_is_false(void) {
+    DecisionBuffer buf;
+    ControlDecision out;
+    TEST_ASSERT_FALSE(buf.peek(out));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_a_new_buffer_is_empty);
@@ -114,5 +142,7 @@ int main(int, char**) {
     RUN_TEST(test_clear_overflow_resets_the_flag);
     RUN_TEST(test_can_be_refilled_after_draining);
     RUN_TEST(test_a_partial_drain_leaves_the_rest_in_order);
+    RUN_TEST(test_peek_does_not_consume);
+    RUN_TEST(test_peek_on_empty_is_false);
     return UNITY_END();
 }
