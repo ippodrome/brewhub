@@ -17,6 +17,7 @@ export interface StoredControlState {
   setpointC: number;
   mode: string;
   controlTempC: number | null;
+  overflowed: boolean;
   receivedAt: number;
 }
 
@@ -41,6 +42,7 @@ interface StateRow {
   setpoint_c: number;
   mode: string;
   control_temp_c: number | null;
+  overflowed: number;
   received_at: number;
 }
 
@@ -65,14 +67,15 @@ export function upsertControlState(
 ): void {
   db.prepare(
     `INSERT INTO device_control_state
-       (device_id, output, since_ms, setpoint_c, mode, control_temp_c, received_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+       (device_id, output, since_ms, setpoint_c, mode, control_temp_c, overflowed, received_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(device_id) DO UPDATE SET
        output = excluded.output,
        since_ms = excluded.since_ms,
        setpoint_c = excluded.setpoint_c,
        mode = excluded.mode,
        control_temp_c = excluded.control_temp_c,
+       overflowed = excluded.overflowed,
        received_at = excluded.received_at`,
   ).run(
     payload.deviceId,
@@ -81,6 +84,7 @@ export function upsertControlState(
     payload.setpointC,
     payload.mode,
     payload.controlTempC,
+    payload.overflowed ? 1 : 0,
     receivedAt,
   );
 }
@@ -98,6 +102,7 @@ export function getControlState(db: Database.Database, deviceId: string): Stored
     setpointC: row.setpoint_c,
     mode: row.mode,
     controlTempC: row.control_temp_c,
+    overflowed: Boolean(row.overflowed),
     receivedAt: row.received_at,
   };
 }

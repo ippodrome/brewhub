@@ -49,6 +49,11 @@ export const ControlStatePayloadSchema = z.object({
   mode: z.enum(["off", "thermostat", "pid"]),
   /** Null when no valid reading is available — a faulted or missing sensor. */
   controlTempC: z.number().nullable(),
+  /**
+   * Firmware sets this when DecisionBuffer dropped oldest entries; one-shot
+   * after drain, not a sticky banner.
+   */
+  overflowed: z.boolean(),
 });
 export type ControlStatePayload = z.infer<typeof ControlStatePayloadSchema>;
 
