@@ -203,6 +203,10 @@ ControlOutput ControlLoop::desiredThermostat(float temperatureC)
 
 ControlOutput ControlLoop::desiredPid(float temperatureC, uint32_t nowMs)
 {
+    lastReadingC_ = temperatureC;
+    lastThresholdC_ = config_.setpointC;
+    lastDesiredReason_ = DecisionReason::PID_WINDOW;
+
     bool windowElapsed = pidWindowInitialized_ &&
         (nowMs - pidWindowStartMs_) >= config_.pidWindowMs;
 
