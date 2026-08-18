@@ -291,6 +291,7 @@ void connectWiFi() {
 unibrew::DecisionBuffer decisionBuffer;
 uint32_t lastControlStateMs = 0;
 constexpr uint32_t kControlStateIntervalMs = 30000;
+float lastControlTemperatureC = NAN;
 
 const char* outputName(ControlOutput o) {
     switch (o) {
@@ -336,6 +337,7 @@ void publishControlState(float controlTemperatureC, uint32_t now) {
     } else {
         doc["controlTempC"] = controlTemperatureC + offset;
     }
+    doc["overflowed"] = decisionBuffer.overflowed();
 
     char buf[256];
     serializeJson(doc, buf, sizeof(buf));
@@ -385,6 +387,14 @@ void drainDecisionBuffer() {
             return;
         }
         (void)decisionBuffer.pop(buffered);
+    }
+    // Overflow is one-shot on the snapshot: report it once the remaining
+    // decisions have gone out, then clear so the next 30 s tick is not a
+    // sticky banner. Early return above leaves the hole pending.
+    if (decisionBuffer.size() == 0 && decisionBuffer.overflowed()) {
+        publishControlState(lastControlTemperatureC, millis());
+        lastControlStateMs = millis();
+        decisionBuffer.clearOverflow();
     }
 }
 
@@ -476,6 +486,7 @@ void loop() {
         SensorSample samples[unibrew::kMaxSensors];
         size_t count = sensorManager.readAll(samples, unibrew::kMaxSensors);
         float controlTemperatureC = selectControlTemperature(samples, count);
+        lastControlTemperatureC = controlTemperatureC;
         ControlOutput output = controlLoop.update(controlTemperatureC, now);
         applyRelayOutput(output);
         publishTelemetry(samples, count);
