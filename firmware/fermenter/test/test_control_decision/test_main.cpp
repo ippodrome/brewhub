@@ -226,6 +226,84 @@ void test_exposes_when_the_output_last_changed(void) {
     TEST_ASSERT_EQUAL_UINT32(7000, loop.lastTransitionMs());
 }
 
+void test_side_switch_min_off_records_idle_then_blocked(void) {
+    ControlConfig cfg;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 600000;
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);  // cooling
+    loop.takeDecision(ignored);
+    loop.update(19.0f, 2000);  // heating (first heat is free)
+    loop.takeDecision(ignored);
+
+    loop.update(21.0f, 3000);  // wants cooling, min-off refuses, goes idle
+    ControlDecision first, second;
+    TEST_ASSERT_TRUE(loop.takeDecision(first));
+    TEST_ASSERT_EQUAL(DecisionKind::TRANSITION, first.kind);
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, first.from);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, first.to);
+    TEST_ASSERT_TRUE(loop.takeDecision(second));
+    TEST_ASSERT_EQUAL(DecisionKind::BLOCKED, second.kind);
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, second.to);
+    TEST_ASSERT_EQUAL(DecisionReason::MIN_OFF_NOT_MET, second.reason);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, loop.currentOutput());
+    TEST_ASSERT_FALSE(loop.takeDecision(ignored));
+
+    loop.update(21.0f, 4000);
+    TEST_ASSERT_FALSE(loop.takeDecision(ignored));
+}
+
+void test_polarity_then_blocked_are_both_kept(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 600000;
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);
+    loop.takeDecision(ignored);
+
+    loop.forceIdleAndArmMinOff(2000);
+    ControlDecision polarity;
+    TEST_ASSERT_TRUE(loop.takeDecision(polarity));
+    TEST_ASSERT_EQUAL(DecisionReason::POLARITY_FORCED_IDLE, polarity.reason);
+
+    loop.update(21.0f, 3000);
+    ControlDecision blocked;
+    TEST_ASSERT_TRUE(loop.takeDecision(blocked));
+    TEST_ASSERT_EQUAL(DecisionKind::BLOCKED, blocked.kind);
+    TEST_ASSERT_EQUAL(DecisionReason::MIN_OFF_NOT_MET, blocked.reason);
+    TEST_ASSERT_FALSE(loop.takeDecision(ignored));
+}
+
+void test_block_is_reported_again_after_request_withdraws(void) {
+    ControlConfig cfg;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 600000;
+    ControlLoop loop(cfg);
+    ControlDecision ignored;
+
+    loop.update(21.0f, 1000);
+    loop.takeDecision(ignored);
+    loop.update(19.4f, 2000);
+    loop.takeDecision(ignored);
+
+    loop.update(21.0f, 3000);
+    TEST_ASSERT_TRUE(loop.takeDecision(ignored)); // blocked
+
+    loop.update(20.0f, 4000); // inside band, desired == idle
+    TEST_ASSERT_FALSE(loop.takeDecision(ignored));
+
+    loop.update(21.0f, 5000); // request cooling again, still min-off
+    ControlDecision d;
+    TEST_ASSERT_TRUE(loop.takeDecision(d));
+    TEST_ASSERT_EQUAL(DecisionKind::BLOCKED, d.kind);
+    TEST_ASSERT_EQUAL(DecisionReason::MIN_OFF_NOT_MET, d.reason);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_no_decision_pending_on_a_fresh_loop);
@@ -242,5 +320,8 @@ int main(int, char**) {
     RUN_TEST(test_a_continuing_block_is_reported_once);
     RUN_TEST(test_records_blocked_when_min_on_not_met);
     RUN_TEST(test_exposes_when_the_output_last_changed);
+    RUN_TEST(test_side_switch_min_off_records_idle_then_blocked);
+    RUN_TEST(test_polarity_then_blocked_are_both_kept);
+    RUN_TEST(test_block_is_reported_again_after_request_withdraws);
     return UNITY_END();
 }
