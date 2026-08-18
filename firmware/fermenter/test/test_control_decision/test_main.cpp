@@ -9,6 +9,7 @@ using unibrew::ControlMode;
 using unibrew::ControlOutput;
 using unibrew::DecisionKind;
 using unibrew::DecisionReason;
+using unibrew::PidGains;
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -226,6 +227,7 @@ void test_exposes_when_the_output_last_changed(void) {
     TEST_ASSERT_EQUAL_UINT32(7000, loop.lastTransitionMs());
 }
 
+
 void test_side_switch_min_off_records_idle_then_blocked(void) {
     ControlConfig cfg;
     cfg.heatingEnabled = true;
@@ -304,6 +306,42 @@ void test_block_is_reported_again_after_request_withdraws(void) {
     TEST_ASSERT_EQUAL(DecisionReason::MIN_OFF_NOT_MET, d.reason);
 }
 
+
+void test_pid_window_records_pid_window_reason(void) {
+    ControlConfig cfg;
+    cfg.mode = ControlMode::PID;
+    cfg.setpointC = 25.0f;
+    cfg.pidGains = PidGains{10.0f, 0.0f, 0.0f};
+    cfg.pidWindowMs = 1000;
+    cfg.heatingEnabled = true;
+    cfg.minOnTimeMs = 0;
+    cfg.minOffTimeMs = 0;
+    ControlLoop loop(cfg);
+
+    // error=5, pidOutput=50 -> heating for 50% of the window. Same fixture as
+    // test_pid_mode_heating_demand_turns_on_heating_within_window.
+    loop.update(20.0f, 0);
+    ControlDecision d;
+    TEST_ASSERT_TRUE(loop.takeDecision(d));
+    TEST_ASSERT_EQUAL(DecisionKind::TRANSITION, d.kind);
+    TEST_ASSERT_EQUAL(ControlOutput::IDLE, d.from);
+    TEST_ASSERT_EQUAL(ControlOutput::HEATING, d.to);
+    TEST_ASSERT_EQUAL(DecisionReason::PID_WINDOW, d.reason);
+    TEST_ASSERT_EQUAL_FLOAT(20.0f, d.temperatureC);
+    TEST_ASSERT_EQUAL_FLOAT(25.0f, d.thresholdC);
+}
+
+void test_thermostat_decision_uses_calibrated_temperature(void) {
+    ControlConfig cfg;
+    cfg.controlSensorOffsetC = 0.5f;
+    ControlLoop loop(cfg);
+    loop.update(21.0f, 1000);  // raw 21, calibrated 21.5, above 20.5 high
+    ControlDecision d;
+    TEST_ASSERT_TRUE(loop.takeDecision(d));
+    TEST_ASSERT_EQUAL(ControlOutput::COOLING, d.to);
+    TEST_ASSERT_EQUAL_FLOAT(21.5f, d.temperatureC);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_no_decision_pending_on_a_fresh_loop);
@@ -323,5 +361,7 @@ int main(int, char**) {
     RUN_TEST(test_side_switch_min_off_records_idle_then_blocked);
     RUN_TEST(test_polarity_then_blocked_are_both_kept);
     RUN_TEST(test_block_is_reported_again_after_request_withdraws);
+    RUN_TEST(test_pid_window_records_pid_window_reason);
+    RUN_TEST(test_thermostat_decision_uses_calibrated_temperature);
     return UNITY_END();
 }
