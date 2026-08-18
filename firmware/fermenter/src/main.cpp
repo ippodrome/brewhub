@@ -68,6 +68,9 @@ bool heatingRelayActiveLow = RELAY_ACTIVE_LOW;
 // Defined below, but needed by onConfigMessage to force the outputs safe the
 // moment a polarity changes.
 void applyRelayOutput(ControlOutput output);
+void publishControlState(float controlTemperatureC, uint32_t now);
+bool publishDecision(const unibrew::ControlDecision& d);
+bool flushPendingDecisions();
 
 const char* controlModeToString(ControlMode mode) {
     switch (mode) {
@@ -189,6 +192,9 @@ void onConfigMessage(const uint8_t* payload, unsigned int length) {
         // compressor has had time to equalize.
         controlLoop.forceIdleAndArmMinOff(millis());
         applyRelayOutput(ControlOutput::IDLE);
+        if (flushPendingDecisions()) {
+            publishControlState(NAN, millis());
+        }
         Serial.println("[config] forced idle after relay polarity change");
     }
 
@@ -352,19 +358,32 @@ bool publishDecision(const unibrew::ControlDecision& d) {
     return mqttClient.publishDecision(buf);
 }
 
+bool flushPendingDecisions()
+{
+    bool any = false;
+    unibrew::ControlDecision decision;
+    while (controlLoop.takeDecision(decision)) {
+        if (!publishDecision(decision)) {
+            decisionBuffer.push(decision);
+        }
+        any = true;
+    }
+    return any;
+}
+
 // Sends at most a few per iteration: the watchdog is fed once per loop, and
 // a full buffer flushed in one go could outrun it on a slow link.
 void drainDecisionBuffer() {
     constexpr size_t kMaxPerIteration = 4;
     for (size_t i = 0; i < kMaxPerIteration && decisionBuffer.size() > 0; i++) {
         unibrew::ControlDecision buffered;
-        if (!decisionBuffer.pop(buffered)) {
+        if (!decisionBuffer.peek(buffered)) {
             return;
         }
         if (!publishDecision(buffered)) {
-            decisionBuffer.push(buffered);   // put it back and try again later
             return;
         }
+        (void)decisionBuffer.pop(buffered);
     }
 }
 
@@ -463,11 +482,7 @@ void loop() {
         // A decision is worth reporting the moment it happens, not on the
         // next 30 s tick — the whole point of the state topic is that the UI
         // is never behind on what the compressor is doing.
-        unibrew::ControlDecision decision;
-        if (controlLoop.takeDecision(decision)) {
-            if (!publishDecision(decision)) {
-                decisionBuffer.push(decision);
-            }
+        if (flushPendingDecisions()) {
             publishControlState(controlTemperatureC, now);
             lastControlStateMs = now;
         } else if (now - lastControlStateMs >= kControlStateIntervalMs) {

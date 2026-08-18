@@ -45,6 +45,15 @@ public:
         return true;
     }
 
+    bool peek(ControlDecision& out) const
+    {
+        if (count_ == 0) {
+            return false;
+        }
+        out = entries_[head_];
+        return true;
+    }
+
     size_t size() const { return count_; }
     bool overflowed() const { return overflowed_; }
     void clearOverflow() { overflowed_ = false; }

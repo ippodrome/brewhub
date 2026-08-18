@@ -77,11 +77,12 @@ uint32_t ControlLoop::lastTransitionMs() const
 
 bool ControlLoop::takeDecision(ControlDecision& out)
 {
-    if (!hasPendingDecision_) {
+    if (pendingCount_ == 0) {
         return false;
     }
-    out = pendingDecision_;
-    hasPendingDecision_ = false;
+    out = pending_[pendingHead_];
+    pendingHead_ = (pendingHead_ + 1) % kPendingCapacity;
+    pendingCount_--;
     return true;
 }
 
@@ -91,15 +92,20 @@ void ControlLoop::recordDecision(DecisionKind kind, ControlOutput to, DecisionRe
 {
     // Reads output_ and lastTransitionMs_, so every caller must invoke this
     // BEFORE transitionTo updates them.
-    pendingDecision_.kind = kind;
-    pendingDecision_.from = output_;
-    pendingDecision_.to = to;
-    pendingDecision_.reason = reason;
-    pendingDecision_.temperatureC = temperatureC;
-    pendingDecision_.thresholdC = thresholdC;
-    pendingDecision_.elapsedMs = nowMs - lastTransitionMs_;
-    pendingDecision_.remainingMs = remainingMs;
-    hasPendingDecision_ = true;
+    if (pendingCount_ == kPendingCapacity) {
+        pendingHead_ = (pendingHead_ + 1) % kPendingCapacity;
+        pendingCount_--;
+    }
+    pending_[pendingTail_].kind = kind;
+    pending_[pendingTail_].from = output_;
+    pending_[pendingTail_].to = to;
+    pending_[pendingTail_].reason = reason;
+    pending_[pendingTail_].temperatureC = temperatureC;
+    pending_[pendingTail_].thresholdC = thresholdC;
+    pending_[pendingTail_].elapsedMs = nowMs - lastTransitionMs_;
+    pending_[pendingTail_].remainingMs = remainingMs;
+    pendingTail_ = (pendingTail_ + 1) % kPendingCapacity;
+    pendingCount_++;
 }
 
 uint32_t ControlLoop::minOnRemainingMs(uint32_t nowMs) const
@@ -159,7 +165,6 @@ void ControlLoop::transitionTo(ControlOutput next, uint32_t nowMs)
 
     output_ = next;
     lastTransitionMs_ = nowMs;
-    hasReportedBlock_ = false;
 }
 
 ControlOutput ControlLoop::desiredThermostat(float temperatureC)
@@ -257,6 +262,7 @@ void ControlLoop::applyDesired(ControlOutput desired, uint32_t nowMs)
     // Leaving HEATING or COOLING → IDLE (or switching sides via IDLE conceptually):
     // must satisfy min-on before leaving active state.
     if (desired == output_) {
+        hasReportedBlock_ = false;
         return;
     }
 
@@ -269,35 +275,42 @@ void ControlLoop::applyDesired(ControlOutput desired, uint32_t nowMs)
 
     if (desired == ControlOutput::HEATING) {
         if (!canEnterHeating(nowMs)) {
-            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
-                          minOffRemainingMs(nowMs, desired));
             if (output_ != ControlOutput::IDLE) {
+                recordDecision(DecisionKind::TRANSITION, ControlOutput::IDLE, lastDesiredReason_,
+                               lastReadingC_, lastThresholdC_, nowMs, 0);
                 transitionTo(ControlOutput::IDLE, nowMs);
             }
+            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
+                          minOffRemainingMs(nowMs, desired));
             return;
         }
         recordTransition(ControlOutput::HEATING, nowMs);
         transitionTo(ControlOutput::HEATING, nowMs);
+        hasReportedBlock_ = false;
         return;
     }
 
     if (desired == ControlOutput::COOLING) {
         if (!canEnterCooling(nowMs)) {
-            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
-                          minOffRemainingMs(nowMs, desired));
             if (output_ != ControlOutput::IDLE) {
+                recordDecision(DecisionKind::TRANSITION, ControlOutput::IDLE, lastDesiredReason_,
+                               lastReadingC_, lastThresholdC_, nowMs, 0);
                 transitionTo(ControlOutput::IDLE, nowMs);
             }
+            reportBlocked(desired, DecisionReason::MIN_OFF_NOT_MET, nowMs,
+                          minOffRemainingMs(nowMs, desired));
             return;
         }
         recordTransition(ControlOutput::COOLING, nowMs);
         transitionTo(ControlOutput::COOLING, nowMs);
+        hasReportedBlock_ = false;
         return;
     }
 
     // desired == IDLE
     recordTransition(ControlOutput::IDLE, nowMs);
     transitionTo(ControlOutput::IDLE, nowMs);
+    hasReportedBlock_ = false;
 }
 
 ControlOutput ControlLoop::update(float temperatureC, uint32_t nowMs)

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include "PidController.h"
 
@@ -112,8 +113,11 @@ private:
     uint32_t minOnRemainingMs(uint32_t nowMs) const;
     uint32_t minOffRemainingMs(uint32_t nowMs, ControlOutput desired) const;
 
-    ControlDecision pendingDecision_;
-    bool hasPendingDecision_ = false;
+    static constexpr size_t kPendingCapacity = 4;
+    ControlDecision pending_[kPendingCapacity];
+    size_t pendingHead_ = 0;
+    size_t pendingTail_ = 0;
+    size_t pendingCount_ = 0;
 
     // Stashed by desiredThermostat/desiredPid so applyDesired can record what
     // drove the decision without recomputing it.
