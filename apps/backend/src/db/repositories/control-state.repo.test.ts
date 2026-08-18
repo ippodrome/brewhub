@@ -24,6 +24,7 @@ const STATE = {
   setpointC: 19,
   mode: "thermostat" as const,
   controlTempC: 19.42,
+  overflowed: false,
 };
 
 const DECISION = {
@@ -78,6 +79,18 @@ describe("control state", () => {
     insertDevice(db, { id: "kegerator-01", name: "Keg", type: "kegerator" });
     upsertControlState(db, STATE, 1_700_000_000_000);
     expect(getControlState(db, "kegerator-01")).toBeNull();
+  });
+
+  it("round-trips overflowed true", () => {
+    const db = setUp();
+    upsertControlState(db, { ...STATE, overflowed: true }, 1_700_000_000_000);
+    expect(getControlState(db, "fermenter-01")?.overflowed).toBe(true);
+  });
+
+  it("round-trips overflowed false (default fixture)", () => {
+    const db = setUp();
+    upsertControlState(db, STATE, 1_700_000_000_000);
+    expect(getControlState(db, "fermenter-01")?.overflowed).toBe(false);
   });
 });
 
