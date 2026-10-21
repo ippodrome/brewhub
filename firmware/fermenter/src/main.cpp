@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
+#include <driver/gpio.h>
 
 #include "ControlLoop.h"
 #include "SensorManager.h"
@@ -11,6 +12,7 @@
 #include "OtaUpdater.h"
 #include "pins.h"
 #include "secrets.h"
+#include "OtaSecrets.h"
 
 using unibrew::ControlConfig;
 using unibrew::ControlLoop;
@@ -223,9 +225,15 @@ void onOtaMessage(const uint8_t* payload, unsigned int length) {
     Serial.printf("[ota] update requested: version=%s url=%s\n",
                   doc["version"].is<const char*>() ? doc["version"].as<const char*>() : "?", url);
 
-    esp_task_wdt_delete(nullptr);
-    otaUpdater.begin(url, md5);
-    esp_task_wdt_add(nullptr); // only reached on failure
+    // A blocking download must never run with an actuator energized: drop
+    // to IDLE first (and arm min-off, so a failed update can't short-cycle
+    // the compressor when control resumes).
+    controlLoop.forceIdleAndArmMinOff(millis());
+    applyRelayOutput(ControlOutput::IDLE);
+
+    // Watchdog stays armed during the download (longer timeout, fed per
+    // chunk inside OtaUpdater) and is restored on failure.
+    otaUpdater.begin(url, md5, unibrew::otaOptionsFromSecrets(kWatchdogTimeoutS));
 }
 
 float selectControlTemperature(const SensorSample* samples, size_t count) {
@@ -327,16 +335,25 @@ void setup() {
     esp_task_wdt_init(kWatchdogTimeoutS, true);
     esp_task_wdt_add(nullptr);
 
-    pinMode(HEATING_RELAY_PIN, OUTPUT);
-    pinMode(COOLING_RELAY_PIN, OUTPUT);
-
     // NVS is opened, and the persisted relay polarities restored, BEFORE the
-    // first output write — otherwise that write would use the compiled-in
-    // defaults and could briefly energize an actuator on every boot of a
-    // device whose polarity has been corrected.
+    // relay pins are touched — otherwise the first write would use the
+    // compiled-in defaults and could briefly energize an actuator on every
+    // boot of a device whose polarity has been corrected.
     configStore.begin();
     coolingRelayActiveLow = configStore.loadCoolingRelayActiveLow(RELAY_ACTIVE_LOW);
     heatingRelayActiveLow = configStore.loadHeatingRelayActiveLow(RELAY_ACTIVE_LOW);
+
+    // Latch the OFF level into the output register BEFORE switching the pins
+    // to OUTPUT. pinMode(OUTPUT) first would drive the pins LOW, which on an
+    // active-low relay board energizes heating AND cooling until the first
+    // applyRelayOutput() — a compressor kick on every boot that bypasses
+    // the min-off protection.
+    // gpio_set_level (not digitalWrite) because Arduino-ESP32 3.x ignores
+    // digitalWrite on a pin that is not yet configured as an output.
+    gpio_set_level(static_cast<gpio_num_t>(HEATING_RELAY_PIN), heatingRelayActiveLow ? 1 : 0);
+    gpio_set_level(static_cast<gpio_num_t>(COOLING_RELAY_PIN), coolingRelayActiveLow ? 1 : 0);
+    pinMode(HEATING_RELAY_PIN, OUTPUT);
+    pinMode(COOLING_RELAY_PIN, OUTPUT);
     applyRelayOutput(ControlOutput::IDLE); // safe default before any control decision has run
 
     controlLoop.setConfig(configStore.load());
