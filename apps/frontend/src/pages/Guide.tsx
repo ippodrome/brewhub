@@ -10,6 +10,7 @@ const SECTIONS: Section[] = [
   { id: "adding-a-device", title: "Adding a device" },
   { id: "fermenter-control", title: "Fermenter control" },
   { id: "profiles", title: "Profiles" },
+  { id: "templates", title: "Editing & templates" },
   { id: "kegerator-taps", title: "Kegerator & taps" },
   { id: "relay-wiring", title: "Relay wiring" },
   { id: "sensor-calibration", title: "Sensor calibration" },
@@ -137,7 +138,7 @@ export function Guide(): JSX.Element {
             A profile lets a fermenter's setpoint change automatically over the course of a fermentation, instead of
             staying fixed. Create one from a fermenter's <strong>Profiles</strong> tab, then hit <strong>Activate</strong> to
             start following it — the resolved setpoint updates automatically from then on, and you can always click
-            <strong> Stop following a profile</strong> to go back to manual control.
+            <strong> Stop</strong> on the running profile to go back to manual control.
           </p>
           <div className={card}>
             <p className={label}>Time-based</p>
@@ -157,6 +158,39 @@ export function Guide(): JSX.Element {
               not a clock. Requires a hydrometer (Tilt, Rapt Pill, or iSpindel) assigned to that fermenter first —
               see <a href="#gravity" className="underline">Gravity & hydrometers</a> below. Steps are naturally
               authored high-to-low (original gravity down to final gravity).
+            </p>
+          </div>
+        </section>
+
+        <section id="templates" className="space-y-3">
+          <h2 className={h2}>Editing, progress &amp; templates</h2>
+          <div className={card}>
+            <p className={label}>Editing and duplicating</p>
+            <p className={p}>
+              Every profile has <strong>Edit</strong>, and the ⋯ menu has <strong>Duplicate</strong> — both open the same
+              step editor used to create one. Editing the profile that is running keeps its original start time and
+              sends the new target to the chamber straight away. If you change a step the brew has already been
+              through, the editor warns you first: the target simply jumps to wherever the new steps say it should be
+              now.
+            </p>
+          </div>
+          <div className={card}>
+            <p className={label}>Progress and restart</p>
+            <p className={p}>
+              While a profile runs, the fermenter's dashboard card shows a small curve with a dot for "now", which step
+              is in progress (for example <em>Step 2 of 3 in progress</em>) and when the next change comes. In the
+              Profiles panel, <strong>Restart</strong> resets the start time to now — use it when you pitch a new batch
+              with the same profile.
+            </p>
+          </div>
+          <div className={card}>
+            <p className={label}>Templates</p>
+            <p className={p}>
+              Templates are schedules you can reuse on any fermenter. Choose <strong>Save as template</strong> in a
+              profile's ⋯ menu, or build one on the <strong>Templates</strong> page. <strong>Apply to fermenter</strong>{" "}
+              copies the template onto that device (tick <em>Start now</em> to activate it at once). The copy is
+              independent: editing or deleting the template later never changes a brew in progress, and removing a
+              device never removes your templates.
             </p>
           </div>
         </section>

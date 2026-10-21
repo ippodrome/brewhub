@@ -1,4 +1,10 @@
 import {
+  ActiveProfileProgressSchema,
+  ApplyTemplateResultSchema,
+  ProfileTemplateSchema,
+  type ActiveProfileProgress,
+  type ApplyTemplateResult,
+  type ProfileTemplate,
   CreateProfileRequestSchema,
   ImportProfilesResultSchema,
   ProfileSchema,
@@ -71,4 +77,69 @@ export async function deleteProfile(deviceId: string, profileId: number): Promis
     `/api/devices/${encodeURIComponent(deviceId)}/profiles/${profileId}`,
     { method: "DELETE" },
   );
+}
+
+const devicePath = (deviceId: string) => `/api/devices/${encodeURIComponent(deviceId)}/profiles`;
+
+export async function updateProfile(deviceId: string, profileId: number, req: CreateProfileRequest): Promise<Profile> {
+  const body = CreateProfileRequestSchema.parse(req);
+  const response = await apiFetch<unknown>(`${devicePath(deviceId)}/${profileId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return ProfileSchema.parse(response);
+}
+
+export async function getActiveProgress(deviceId: string): Promise<ActiveProfileProgress> {
+  return ActiveProfileProgressSchema.parse(await apiFetch<unknown>(`${devicePath(deviceId)}/active`));
+}
+
+export async function restartActiveProfile(deviceId: string): Promise<ActiveProfileProgress> {
+  return ActiveProfileProgressSchema.parse(
+    await apiFetch<unknown>(`${devicePath(deviceId)}/active/restart`, { method: "POST" }),
+  );
+}
+
+export async function saveProfileAsTemplate(deviceId: string, profileId: number): Promise<ProfileTemplate> {
+  const response = await apiFetch<unknown>(`${devicePath(deviceId)}/${profileId}/save-as-template`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  return ProfileTemplateSchema.parse(response);
+}
+
+export async function listTemplates(): Promise<ProfileTemplate[]> {
+  return z.array(ProfileTemplateSchema).parse(await apiFetch<unknown>("/api/profile-templates"));
+}
+
+export async function createTemplate(req: CreateProfileRequest): Promise<ProfileTemplate> {
+  const response = await apiFetch<unknown>("/api/profile-templates", {
+    method: "POST",
+    body: JSON.stringify(CreateProfileRequestSchema.parse(req)),
+  });
+  return ProfileTemplateSchema.parse(response);
+}
+
+export async function updateTemplate(templateId: number, req: CreateProfileRequest): Promise<ProfileTemplate> {
+  const response = await apiFetch<unknown>(`/api/profile-templates/${templateId}`, {
+    method: "PUT",
+    body: JSON.stringify(CreateProfileRequestSchema.parse(req)),
+  });
+  return ProfileTemplateSchema.parse(response);
+}
+
+export async function deleteTemplate(templateId: number): Promise<void> {
+  await apiFetch<void>(`/api/profile-templates/${templateId}`, { method: "DELETE" });
+}
+
+export async function applyTemplate(
+  templateId: number,
+  deviceId: string,
+  activate: boolean,
+): Promise<ApplyTemplateResult> {
+  const response = await apiFetch<unknown>(`/api/profile-templates/${templateId}/apply`, {
+    method: "POST",
+    body: JSON.stringify({ deviceId, activate }),
+  });
+  return ApplyTemplateResultSchema.parse(response);
 }
