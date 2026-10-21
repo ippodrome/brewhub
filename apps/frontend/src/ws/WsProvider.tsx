@@ -1,4 +1,5 @@
 import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { getToken } from "../api/client";
 import { WsMessageSchema, type Device, type StatusPayload, type TelemetryPayload } from "@brewhub/shared-types";
 
 export interface WsState {
@@ -15,9 +16,13 @@ export const WsContext = createContext<WsState>({
   statusByDevice: {},
 });
 
+// The backend requires the same JWT as the REST API on /ws. Browsers can't
+// set headers on a WebSocket handshake, so it goes in the query string.
 function wsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/ws`;
+  const token = getToken();
+  const query = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${proto}//${window.location.host}/ws${query}`;
 }
 
 const INITIAL_RECONNECT_DELAY_MS = 1000;
