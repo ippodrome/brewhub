@@ -4,16 +4,8 @@ import { Maximize2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Device, TelemetryPayload } from "@brewhub/shared-types";
 import { listSensors } from "../api/sensors";
-
-function timeAgo(tsMs: number | null): string {
-  if (tsMs === null) return "never";
-  const seconds = Math.max(0, Math.floor((Date.now() - tsMs) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ago`;
-}
+import { timeAgo } from "../lib/status";
+import { StatusDot } from "./StatusDot";
 
 function shortAddress(address: string): string {
   return address.length > 8 ? `${address.slice(0, 8)}…` : address;
@@ -44,61 +36,73 @@ export function TemperatureReadout({
   const headline = sensors.find((s) => s.address === controlAddress) ?? sensors[0];
   const others = sensors.filter((s) => s !== headline);
 
+  const hasReading = headline !== undefined && headline.temperatureC !== null;
+  const lastTs = telemetry?.ts ?? device.lastSeenAt;
+
   return (
-    <div className="rounded-2xl border border-line bg-card p-6">
-      <div className="flex items-center gap-2">
-        <span
-          className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-ok shadow-[0_0_6px_rgb(var(--c-ok)/0.6)]" : "bg-dim"}`}
-        />
-        <span className="text-sm font-medium text-muted">{device.name}</span>
-        {device.chamberName && <span className="text-xs text-dim">· {device.chamberName}</span>}
-        <span className="flex-1" />
+    <article className={`card flex flex-col p-6 sm:p-7 ${device.isOnline ? "" : "bg-surface/60"}`} aria-label={device.name}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-display text-lg font-semibold text-fg">{device.name}</h3>
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-dim">
+            <StatusDot tone={device.isOnline ? "ok" : "idle"} className="!h-1.5 !w-1.5" />
+            <span>{device.isOnline ? "Online" : "Offline"}</span>
+            {device.chamberName && <span className="truncate">· {device.chamberName}</span>}
+          </p>
+        </div>
         {/* The way you first reach a device's display page; after that it is
             a bookmark on whatever screen lives next to the equipment. */}
         <Link
           to={`/display/${encodeURIComponent(device.id)}`}
           aria-label={`Open ${device.name} display view`}
           title="Open display view"
-          className="rounded-lg p-1 text-dim hover:bg-tint hover:text-fg"
+          className="icon-btn -mr-2 -mt-1"
         >
-          <Maximize2 className="h-3.5 w-3.5" strokeWidth={2} />
+          <Maximize2 className="h-4 w-4" strokeWidth={1.75} />
         </Link>
       </div>
 
-      <div className="mt-4 flex items-baseline gap-1">
-        {headline && headline.temperatureC !== null ? (
-          <>
-            <span className="font-display text-5xl font-semibold tabular-nums text-fg">
-              {headline.temperatureC.toFixed(1)}
+      {hasReading ? (
+        <div className={`mt-6 ${device.isOnline ? "" : "opacity-60"}`}>
+          <div className="flex items-start gap-1">
+            <span className="font-display text-6xl font-medium leading-none tabular-nums tracking-tight text-fg">
+              {headline.temperatureC!.toFixed(1)}
             </span>
-            <span className="text-xl text-amber">°C</span>
-          </>
-        ) : (
-          <span className="text-3xl font-medium text-dim">No reading</span>
-        )}
-      </div>
-      {headline && (
-        <p className="text-xs text-dim">{labelFor(headline.address)}</p>
-      )}
-
-      {others.length > 0 && (
-        <div className="mt-3 space-y-1 border-t border-line pt-2">
-          {others.map((sensor) => (
-            <div key={sensor.address} className="flex justify-between text-xs text-dim">
-              <span>{labelFor(sensor.address)}</span>
-              <span className="tabular-nums">
-                {sensor.temperatureC !== null ? `${sensor.temperatureC.toFixed(1)}°C` : "—"}
-              </span>
-            </div>
-          ))}
+            <span className="mt-1 font-display text-2xl text-amber">°C</span>
+          </div>
+          <p className="mt-2 text-sm text-muted">{labelFor(headline.address)}</p>
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-dashed border-line-strong px-4 py-5">
+          <p className="font-medium text-fg">{device.isOnline ? "Waiting for first reading" : "No live reading"}</p>
+          <p className="mt-1 text-sm text-muted">
+            {device.isOnline
+              ? "The controller is online but has not sent a temperature yet."
+              : lastTs
+                ? `Last heard from ${timeAgo(lastTs)}. The controller keeps running on its last settings — check power and Wi-Fi.`
+                : "This device has never reported in. Check that it is powered and on the same network."}
+          </p>
         </div>
       )}
 
-      <p className="mt-2 text-xs text-dim">
-        {device.isOnline ? "Online" : "Offline"} · last reading {timeAgo(telemetry?.ts ?? device.lastSeenAt)}
-      </p>
+      {others.length > 0 && (
+        <dl className="mt-5 space-y-2 border-t border-line pt-4">
+          {others.map((sensor) => (
+            <div key={sensor.address} className="flex justify-between text-sm">
+              <dt className="text-muted">{labelFor(sensor.address)}</dt>
+              <dd className="tabular-nums font-medium text-fg">
+                {sensor.temperatureC !== null ? `${sensor.temperatureC.toFixed(1)} °C` : "—"}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {hasReading && (
+        <p className="mt-auto pt-4 text-xs text-dim">Updated {timeAgo(lastTs)}</p>
+      )}
 
       {children}
-    </div>
+    </article>
   );
 }

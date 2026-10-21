@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { Maximize2, Trash2 } from "lucide-react";
 import type { Device } from "@brewhub/shared-types";
 import { deleteDevice, updateDeviceConfig } from "../api/devices";
 import { useLiveTelemetry } from "../ws/useLiveTelemetry";
@@ -9,6 +11,10 @@ import { HydrometerManager } from "./HydrometerManager";
 import { ProfileManager } from "./ProfileManager";
 import { SensorLabelEditor } from "./SensorLabelEditor";
 import { TapManager } from "./TapManager";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { OverflowMenu, type MenuItem } from "./OverflowMenu";
+import { StatusDot } from "./StatusDot";
+import { timeAgo } from "../lib/status";
 
 function KegScaleReadout({ device }: { device: Device }): JSX.Element {
   const { telemetryByDevice } = useLiveTelemetry();
@@ -72,7 +78,7 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
               type="number"
               step="any"
               placeholder="e.g. -22500"
-              className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+              className="field px-2.5 py-1.5 text-sm"
               value={calibrationFactor}
               onChange={(e) => setCalibrationFactor(e.target.value)}
               required
@@ -80,7 +86,7 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
             <button
               type="submit"
               disabled={calibrationMutation.isPending}
-              className="shrink-0 rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+              className="shrink-0 btn-primary px-3 py-1.5 text-xs"
             >
               {calibrationMutation.isPending ? "Applying..." : "Apply"}
             </button>
@@ -94,6 +100,14 @@ function KegScaleReadout({ device }: { device: Device }): JSX.Element {
   );
 }
 
+const TYPE_LABEL: Record<string, string> = {
+  kegerator: "Kegerator",
+  fermenter: "Fermenter",
+  sensor: "Sensor",
+  keg_scale: "Keg scale",
+  gravity_bridge: "Gravity bridge",
+};
+
 export function DeviceCard({ device }: { device: Device }): JSX.Element {
   const [configOpen, setConfigOpen] = useState(false);
   const [profilesOpen, setProfilesOpen] = useState(false);
@@ -103,95 +117,67 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteDevice(device.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
+    onSuccess: () => {
+      setConfirmingDelete(false);
+      return queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
   });
 
+  const controllable = device.type !== "keg_scale" && device.type !== "gravity_bridge";
+  const hasDisplay = device.type === "kegerator" || device.type === "fermenter" || device.type === "sensor";
+
+  // Every panel toggle in one ordered list → one consistent chip row.
+  const panels: Array<{ label: string; open: boolean; toggle: () => void; show: boolean }> = [
+    { label: "Configure", open: configOpen, toggle: () => setConfigOpen((v) => !v), show: controllable },
+    { label: "Sensors", open: sensorsOpen, toggle: () => setSensorsOpen((v) => !v), show: controllable },
+    { label: "Profiles", open: profilesOpen, toggle: () => setProfilesOpen((v) => !v), show: device.type === "fermenter" },
+    { label: "Taps", open: tapsOpen, toggle: () => setTapsOpen((v) => !v), show: device.type === "kegerator" },
+    { label: "Hydrometer", open: hydrometerOpen, toggle: () => setHydrometerOpen((v) => !v), show: device.type === "fermenter" },
+    {
+      label: "History",
+      open: historyOpen,
+      toggle: () => setHistoryOpen((v) => !v),
+      show: device.type !== "sensor" && device.type !== "gravity_bridge",
+    },
+  ];
+
+  const menuItems: MenuItem[] = [
+    ...(hasDisplay
+      ? [{ label: "Open display view", icon: Maximize2, onSelect: () => navigate(`/display/${encodeURIComponent(device.id)}`) }]
+      : []),
+    { label: "Remove device…", icon: Trash2, destructive: true, onSelect: () => setConfirmingDelete(true) },
+  ];
+
+  const meta = [TYPE_LABEL[device.type] ?? device.type, device.chamberName, device.id].filter(Boolean).join(" · ");
+
   return (
-    <div className="rounded-2xl border border-line bg-card p-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${device.isOnline ? "bg-ok" : "bg-dim"}`}
-              title={device.isOnline ? "Online" : "Offline"}
-            />
-            <span className="font-medium text-fg">{device.name}</span>
+    <article className="card p-5 sm:p-6" aria-label={device.name}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="font-display text-xl font-semibold text-fg">{device.name}</h2>
+            <span className={`pill ${device.isOnline ? "bg-ok/10 text-ok" : "bg-tint text-dim"}`}>
+              <StatusDot tone={device.isOnline ? "ok" : "idle"} />
+              {device.isOnline ? "Online" : `Offline · seen ${timeAgo(device.lastSeenAt)}`}
+            </span>
           </div>
-          <p className="mt-0.5 text-xs text-dim">
-            {device.type} · {device.id}
-            {device.chamberName && <> · {device.chamberName}</>}
-          </p>
+          <p className="mt-1 truncate text-sm text-dim">{meta}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
-            <button
-              onClick={() => setConfigOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              Configure
+        <OverflowMenu label={`More actions for ${device.name}`} items={menuItems} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {panels
+          .filter((p) => p.show)
+          .map((p) => (
+            <button key={p.label} type="button" aria-pressed={p.open} onClick={p.toggle} className="chip">
+              {p.label}
             </button>
-          )}
-          {device.type !== "keg_scale" && device.type !== "gravity_bridge" && (
-            <button
-              onClick={() => setSensorsOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              Sensors
-            </button>
-          )}
-          {device.type === "fermenter" && (
-            <button
-              onClick={() => setProfilesOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              Profiles
-            </button>
-          )}
-          {device.type === "kegerator" && (
-            <button
-              onClick={() => setTapsOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              Taps
-            </button>
-          )}
-          {device.type === "fermenter" && (
-            <button
-              onClick={() => setHydrometerOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              Hydrometer
-            </button>
-          )}
-          {device.type !== "sensor" && device.type !== "gravity_bridge" && (
-            <button
-              onClick={() => setHistoryOpen((v) => !v)}
-              className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            >
-              History
-            </button>
-          )}
-          {confirmingDelete ? (
-            <button
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
-              className="rounded-xl bg-crit/10 px-2.5 py-1 text-xs text-crit hover:bg-crit/20"
-            >
-              Confirm delete
-            </button>
-          ) : (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              onBlur={() => setConfirmingDelete(false)}
-              className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-fg"
-            >
-              Remove
-            </button>
-          )}
-        </div>
+          ))}
       </div>
 
       {device.type === "keg_scale" && <KegScaleReadout device={device} />}
@@ -202,6 +188,22 @@ export function DeviceCard({ device }: { device: Device }): JSX.Element {
       {tapsOpen && <TapManager device={device} onClose={() => setTapsOpen(false)} />}
       {hydrometerOpen && <HydrometerManager device={device} onClose={() => setHydrometerOpen(false)} />}
       {historyOpen && <DeviceHistoryPanel device={device} onClose={() => setHistoryOpen(false)} />}
-    </div>
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title={`Remove ${device.name}?`}
+          confirmLabel="Remove device"
+          pendingLabel="Removing…"
+          pending={deleteMutation.isPending}
+          error={deleteMutation.isError ? "Could not remove the device. Try again." : null}
+          onConfirm={() => deleteMutation.mutate()}
+          onCancel={() => setConfirmingDelete(false)}
+        >
+          This deletes <span className="font-medium text-fg">{device.id}</span> together with its configuration,
+          sensors, profiles and history. The physical device keeps running on its last settings until it is
+          re-added.
+        </ConfirmDialog>
+      )}
+    </article>
   );
 }

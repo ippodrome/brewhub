@@ -39,7 +39,7 @@ export function TemperatureBand({
 
   return (
     <div>
-      <div className="relative h-12 overflow-hidden rounded-xl border border-line bg-surface sm:h-14">
+      <div className="relative h-12 overflow-hidden rounded-2xl border border-line-strong bg-tint sm:h-16">
         <div
           className="absolute inset-y-0 border-x border-amber/40 bg-amber/10"
           style={{ left: `${deadbandLeft}%`, width: `${deadbandWidth}%` }}
@@ -48,9 +48,9 @@ export function TemperatureBand({
           className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-amber"
           style={{ left: `${bandPosition(setpointC, minC, maxC)}%` }}
         />
-        {markers.map((marker) => (
+        {markers.map((marker, i) => (
           <div
-            key={marker.label}
+            key={`${i}-${marker.label}`}
             title={`${marker.label} ${marker.valueC.toFixed(1)} °C`}
             className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card transition-[left] duration-700 ease-out ${
               marker.tone === "control" ? "z-10 bg-fg" : "bg-cool"
@@ -60,15 +60,15 @@ export function TemperatureBand({
         ))}
       </div>
 
-      <div className="mt-1.5 flex justify-between text-xs tabular-nums text-dim">
+      <div className="mt-2 flex justify-between text-sm tabular-nums text-dim">
         {ticks.map((tick) => (
           <span key={tick}>{tick.toFixed(0)}</span>
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-dim">
-        {markers.map((marker) => (
-          <span key={marker.label} className="flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-base text-muted">
+        {markers.map((marker, i) => (
+          <span key={`${i}-${marker.label}`} className="flex items-center gap-2">
             <i
               aria-hidden="true"
               className={`h-2.5 w-2.5 rounded-full ${marker.tone === "control" ? "bg-fg" : "bg-cool"}`}

@@ -15,7 +15,7 @@ import {
 } from "../notifications/pushSubscribe";
 
 const inputClass =
-  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+  "field px-2.5 py-1.5 text-sm";
 const labelClass = "text-xs text-dim";
 
 function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX.Element {
@@ -73,7 +73,7 @@ function PushSection({ vapidPublicKey }: { vapidPublicKey: string | null }): JSX
         <button
           onClick={() => subscribeMutation.mutate()}
           disabled={subscribeMutation.isPending || !vapidPublicKey}
-          className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+          className="btn-primary px-3 py-1.5 text-xs"
         >
           {subscribeMutation.isPending ? "Subscribing..." : "Enable push notifications"}
         </button>
@@ -125,13 +125,13 @@ export function NotificationSettings(): JSX.Element {
         channels you enable below.
       </p>
 
-      <div className="space-y-3 rounded-2xl border border-line bg-card p-4">
-        <p className="text-sm font-medium text-muted">Browser push</p>
+      <div className="card space-y-3 p-5">
+        <h3 className="font-display text-base font-semibold text-fg">Browser push</h3>
         <PushSection vapidPublicKey={settingsQuery.data.vapidPublicKey} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-line bg-card p-4">
-        <p className="text-sm font-medium text-muted">Telegram</p>
+      <form onSubmit={handleSubmit} className="card space-y-3 p-5">
+        <h3 className="font-display text-base font-semibold text-fg">Telegram</h3>
         <p className="text-xs text-dim">
           Message <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="underline">@BotFather</a> on
           Telegram to create a bot and get a token; message your new bot once, then check{" "}
@@ -187,7 +187,7 @@ export function NotificationSettings(): JSX.Element {
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+              className="btn-primary px-3 py-1.5 text-xs"
             >
               {saveMutation.isPending ? "Saving..." : "Save"}
             </button>

@@ -52,8 +52,12 @@ export function WsProvider({ children }: { children: ReactNode }): JSX.Element {
       };
 
       socket.onclose = () => {
-        setState((prev) => ({ ...prev, connected: false }));
+        // A socket closed by this effect's own cleanup (unmount, or React
+        // StrictMode's dev double-mount) must not flip `connected` to false:
+        // its close event can land *after* the replacement socket has
+        // opened, leaving the header stuck on "Reconnecting…".
         if (cancelled) return;
+        setState((prev) => ({ ...prev, connected: false }));
         reconnectTimer = setTimeout(connect, reconnectDelayRef.current);
         reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, MAX_RECONNECT_DELAY_MS);
       };

@@ -21,10 +21,10 @@ const SECTIONS: Section[] = [
   { id: "troubleshooting", title: "Troubleshooting" },
 ];
 
-const h2 = "font-display text-lg font-semibold text-fg scroll-mt-6";
-const p = "text-sm leading-relaxed text-fg";
+const h2 = "font-display text-2xl font-semibold text-fg scroll-mt-24";
+const p = "max-w-prose text-[15px] leading-relaxed text-fg/90";
 const label = "text-sm font-medium text-fg";
-const card = "space-y-2 rounded-xl border border-line bg-card p-4";
+const card = "card space-y-2 p-5";
 
 function NavLink({ id, title, active, onClick }: { id: string; title: string; active: boolean; onClick: () => void }): JSX.Element {
   return (
@@ -46,10 +46,10 @@ export function Guide(): JSX.Element {
   const [active, setActive] = useState(SECTIONS[0]!.id);
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-8 p-6">
+    <div className="mx-auto flex max-w-6xl gap-12 px-5 pt-8 sm:px-8 sm:pt-12">
       <nav className="hidden w-48 shrink-0 lg:block">
-        <div className="sticky top-6 space-y-0.5">
-          <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wide text-muted">
+        <div className="sticky top-24 space-y-0.5">
+          <p className="mb-2 px-3 eyebrow">
             On this page
           </p>
           {SECTIONS.map((s) => (
@@ -60,7 +60,8 @@ export function Guide(): JSX.Element {
 
       <div className="min-w-0 flex-1 space-y-12 pb-24">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-fg">Guide</h1>
+          <p className="eyebrow">Handbook</p>
+          <h1 className="page-title mt-1">Guide</h1>
           <p className={`${p} mt-1`}>Everything you need to run BrewHub day to day — no code, just brewing.</p>
         </div>
 

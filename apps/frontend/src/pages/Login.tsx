@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Thermometer } from "lucide-react";
 import { login } from "../api/auth";
 import { ApiError } from "../api/client";
 import { ThemeToggle } from "../theme/ThemeToggle";
+import { BrandMark } from "../components/BrandMark";
 
 export function Login(): JSX.Element {
   const [username, setUsername] = useState("");
@@ -27,47 +27,60 @@ export function Login(): JSX.Element {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-base">
-      <div className="absolute right-6 top-6">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-base px-5 py-12">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{ background: "radial-gradient(60rem 30rem at 50% -10%, rgb(var(--c-amber) / 0.12), transparent 70%)" }}
+      />
+      <div className="absolute right-5 top-5">
         <ThemeToggle />
       </div>
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-2xl border border-line bg-card p-8"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber to-heat shadow-inner">
-            <Thermometer className="h-5 w-5 text-on-amber" strokeWidth={2.5} />
+      <main className="relative w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <BrandMark size="lg" />
+          <p className="mt-4 text-sm text-muted">Temperature control for your fermenters and kegerator.</p>
+        </div>
+        <form onSubmit={handleSubmit} className="card space-y-5 p-8 shadow-lift">
+          <h1 className="font-display text-2xl font-semibold text-fg">Welcome back</h1>
+          <div className="space-y-1.5">
+            <label htmlFor="username" className="text-sm font-medium text-muted">
+              Username
+            </label>
+            <input
+              id="username"
+              autoComplete="username"
+              className="field"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+              required
+            />
           </div>
-          <h1 className="font-display text-xl text-fg">BrewHub</h1>
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm text-muted">Username</label>
-          <input
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm text-muted">Password</label>
-          <input
-            type="password"
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {error && <p className="text-sm text-crit">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-xl bg-amber hover:bg-amber-hi px-3 py-2 font-medium text-on-amber disabled:opacity-50"
-        >
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+          <div className="space-y-1.5">
+            <label htmlFor="password" className="text-sm font-medium text-muted">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              className="field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          {error && (
+            <p role="alert" className="rounded-xl bg-crit/10 px-3 py-2 text-sm text-crit">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-base">
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </main>
     </div>
   );
 }

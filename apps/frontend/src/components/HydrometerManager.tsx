@@ -6,7 +6,7 @@ import { getGravityHistory } from "../api/history";
 import { DeviceHistoryChart } from "./DeviceHistoryChart";
 
 const inputClass =
-  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+  "field px-2.5 py-1.5 text-sm";
 const labelClass = "text-xs text-dim";
 
 const TYPE_LABELS: Record<HydrometerType, string> = {
@@ -197,7 +197,7 @@ export function HydrometerManager({ device, onClose }: { device: Device; onClose
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+                className="btn-primary px-3 py-1.5 text-xs"
               >
                 {createMutation.isPending ? "Adding..." : "Add hydrometer"}
               </button>

@@ -29,9 +29,9 @@ export function BackupRestore(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-line bg-card p-4">
+    <div className="card space-y-4 p-5">
       <div>
-        <p className="text-sm font-medium text-muted">Backup</p>
+        <h3 className="font-display text-base font-semibold text-fg">Backup</h3>
         <p className="text-xs text-dim">
           Downloads the full application database — devices, taps, profiles, history, settings — as a single file.
         </p>
@@ -39,14 +39,14 @@ export function BackupRestore(): JSX.Element {
       <button
         onClick={() => downloadMutation.mutate()}
         disabled={downloadMutation.isPending}
-        className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+        className="btn-primary px-3 py-1.5 text-xs"
       >
         {downloadMutation.isPending ? "Preparing..." : "Download backup"}
       </button>
       {downloadMutation.isError && <p className="text-xs text-crit">Backup download failed.</p>}
 
       <div className="border-t border-line pt-4">
-        <p className="text-sm font-medium text-muted">Restore</p>
+        <h3 className="font-display text-base font-semibold text-fg">Restore</h3>
         <p className="text-xs text-dim">
           Replaces the current database with a previously downloaded backup file.
         </p>

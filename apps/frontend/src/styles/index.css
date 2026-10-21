@@ -18,57 +18,68 @@
  * Values are space-separated RGB channels rather than hex so Tailwind's
  * `<alpha-value>` slot works — `bg-crit/10` has to keep resolving.
  *
- * The two palettes are deliberately not inversions of each other. Dark is a
- * cool near-black (a cellar); light is a warm malt paper, which is what keeps
- * amber sitting *on* the surface in light mode instead of shouting against
- * pure white.
+ * The palette is shared with reklamovertid.se (same author, same brand):
+ * warm cream paper with a burnt-orange accent in light mode, and a deep
+ * roasted-brown "cellar" in dark mode where the accent glows instead of
+ * shouting. Text tokens are chosen to hold WCAG AA (≥ 4.5:1) for body copy
+ * on both `card` and `base`.
  */
 :root {
-  /* chassis — warm malt */
-  --c-base: 242 240 234;
-  --c-surface: 234 230 221;
-  --c-card: 255 253 247;
-  --c-tint: 240 236 226;
-  --c-line: 224 218 204;
-  --c-line-strong: 201 193 176;
-  --c-line-focus: 167 156 136;
-  --c-fg: 26 23 18;
-  --c-muted: 107 97 83;
-  --c-dim: 139 129 115;
+  /* chassis — cream paper */
+  --c-base: 248 244 237;
+  --c-surface: 243 236 224;
+  --c-card: 255 251 243;
+  --c-tint: 240 232 217;
+  --c-line: 230 219 200;
+  --c-line-strong: 212 195 168;
+  --c-line-focus: 180 83 9;
+  --c-fg: 52 37 22;
+  --c-muted: 107 90 69;
+  --c-dim: 125 106 82;
 
-  /* identity */
+  /* identity — burnt orange */
   --c-amber: 180 83 9;
-  --c-amber-hi: 217 119 6;
+  --c-amber-hi: 154 68 6;
   --c-on-amber: 255 250 240;
 
   /* thermal semantics — only ever used when they mean something */
-  --c-cool: 31 111 168;
+  --c-cool: 30 100 150;
   --c-heat: 194 65 12;
-  --c-ok: 26 127 69;
+  --c-ok: 34 115 64;
   --c-crit: 176 32 32;
+
+  --shadow-card: 0 1px 2px rgb(63 46 30 / 0.04), 0 8px 28px rgb(63 46 30 / 0.07);
+  --shadow-lift: 0 2px 4px rgb(63 46 30 / 0.06), 0 18px 48px rgb(63 46 30 / 0.16);
+  --glow: 0 6px 22px rgb(217 119 6 / 0.22);
+  --grad-amber: linear-gradient(135deg, #b45309, #e08a24);
 }
 
 .dark {
-  /* chassis — cold cellar */
-  --c-base: 10 12 17;
-  --c-surface: 18 21 29;
-  --c-card: 23 27 38;
-  --c-tint: 32 37 50;
-  --c-line: 34 39 54;
-  --c-line-strong: 44 50 72;
-  --c-line-focus: 58 66 88;
-  --c-fg: 238 240 245;
-  --c-muted: 154 166 188;
-  --c-dim: 115 127 151;
+  /* chassis — roasted cellar */
+  --c-base: 12 9 6;
+  --c-surface: 18 14 9;
+  --c-card: 23 18 11;
+  --c-tint: 34 27 16;
+  --c-line: 42 33 19;
+  --c-line-strong: 62 49 26;
+  --c-line-focus: 242 169 59;
+  --c-fg: 243 225 194;
+  --c-muted: 196 168 124;
+  --c-dim: 155 130 94;
 
-  --c-amber: 240 168 48;
+  --c-amber: 242 169 59;
   --c-amber-hi: 255 200 102;
-  --c-on-amber: 18 16 10;
+  --c-on-amber: 34 24 10;
 
-  --c-cool: 78 168 222;
-  --c-heat: 255 122 69;
-  --c-ok: 62 207 106;
-  --c-crit: 224 86 86;
+  --c-cool: 110 182 230;
+  --c-heat: 255 128 80;
+  --c-ok: 120 205 140;
+  --c-crit: 255 120 108;
+
+  --shadow-card: 0 0 0 1px rgb(255 220 160 / 0.02), 0 10px 30px rgb(0 0 0 / 0.35);
+  --shadow-lift: 0 18px 48px rgb(0 0 0 / 0.6);
+  --glow: 0 0 24px rgb(242 169 59 / 0.22);
+  --grad-amber: linear-gradient(135deg, #e79b28, #f8c96f);
 }
 
 html,
@@ -83,7 +94,19 @@ body {
 
 .font-display {
   font-family: theme("fontFamily.display");
-  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: rgb(var(--c-amber) / 0.22);
+}
+
+/* One visible, on-brand focus ring for every keyboard-reachable control. */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-amber));
+  outline-offset: 2px;
+  border-radius: 0.75rem;
 }
 
 .tabular-nums {
@@ -145,6 +168,51 @@ body {
 }
 
 @layer components {
+  /* ---- design system primitives ---- */
+  .card {
+    @apply rounded-[1.25rem] border border-line bg-card shadow-card;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-dim;
+  }
+  .page {
+    @apply mx-auto max-w-5xl px-5 pb-10 pt-8 sm:px-8 sm:pt-12;
+  }
+  .page-title {
+    @apply font-display text-[2rem] font-semibold leading-tight text-fg sm:text-[2.5rem];
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn text-on-amber shadow-glow;
+    background: var(--grad-amber);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+  .btn-ghost {
+    @apply btn border border-line-strong/70 bg-card text-muted hover:border-line-strong hover:text-fg;
+  }
+  .btn-danger {
+    @apply btn bg-crit text-white hover:bg-crit/90;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-medium text-muted hover:border-line-strong hover:text-fg;
+  }
+  .chip[aria-pressed="true"] {
+    @apply border-amber/50 bg-amber/10 text-amber;
+  }
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl text-dim hover:bg-tint hover:text-fg;
+  }
+  .field {
+    @apply w-full rounded-xl border border-line-strong bg-surface px-3.5 py-2.5 text-fg outline-none placeholder:text-dim focus:border-amber focus:ring-4 focus:ring-amber/15;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
   /*
    * Modal entry. Nothing in the real world appears from nothing, so the panel
    * starts at 0.96 rather than 0, paired with opacity. Origin stays centred:
@@ -197,4 +265,9 @@ body {
       transform: none;
     }
   }
+}
+
+/* Inputs show focus with their own amber ring; don't stack the outline on top. */
+.field:focus-visible {
+  outline: none;
 }
