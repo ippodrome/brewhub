@@ -144,6 +144,64 @@ Fermenters can follow a gravity-based profile (setpoint driven by measured speci
 
 Once a hydrometer has readings, use the calibration slope/offset fields on the Hydrometer tab if its reported gravity is consistently off from a manual hydrometer reading (`correctedSG = rawSG * slope + offset`) — applied once at ingest, so history and profile resolution both use the corrected value automatically.
 
+## Security hardening (upgrade notes)
+
+These changes need a one-time manual step on an existing install. Nothing
+breaks if you skip them, apart from the WebSocket change (deploy backend and
+frontend together).
+
+### Live WebSocket requires login (`/ws`)
+`/ws` now requires the same JWT as the REST API (`?token=<jwt>` or
+`Authorization: Bearer <jwt>`); without it the handshake gets HTTP 401. The
+bundled frontend sends the token automatically. **Deploy the backend and
+frontend images together**, otherwise an old frontend shows "disconnected".
+Any other client (scripts, Home Assistant automations) reading `/ws` must
+now send a token. No env vars change.
+
+### MQTT ACLs
+The bundled broker now loads `docker/mosquitto/acl` (`acl_file` in
+`mosquitto.conf`). Each device may only publish
+`unibrew/<id>/{status,telemetry,discovery,gravity}` and read
+`unibrew/<id>/{config,ota}`; only `brewhub-backend` can publish `config`/`ota`
+to devices. Requirements:
+- Every device's MQTT **username must equal its `DEVICE_ID`** (already what
+  "Adding a device" says). A device sharing the backend's credentials keeps
+  working but defeats the ACL — give it its own user.
+- If the backend uses a different MQTT username than `brewhub-backend`,
+  change the `user` line in `docker/mosquitto/acl`.
+- **Own broker (Path A):** copy the rules from `docker/mosquitto/acl` into
+  your broker's ACL file and reload it — BrewHub can't do this for you.
+- After changing the ACL: `docker compose restart mosquitto`.
+
+Plaintext port 1883 can be limited to one interface with
+`MQTT_BIND_ADDRESS=<LAN IP>` (or `127.0.0.1`) in `docker/.env`. Default stays
+`0.0.0.0` for compatibility.
+
+### OTA hardening (firmware)
+- OTA URLs received over MQTT are only accepted if they start with an
+  allowed prefix and point at `/api/firmware/`. Set
+  `#define OTA_URL_PREFIX "https://<host>:8443"` in each device's
+  `secrets.h` to exactly your backend `PUBLIC_URL`. Without it the default is
+  `https://<MQTT_HOST>:` (any port), i.e. Caddy must run on the broker host
+  or OTA will be refused.
+- Certificate verification: add `#define OTA_CA_CERT R"PEM(...)PEM"` with
+  Caddy's internal root CA, found in the `caddy-data` volume at
+  `/data/caddy/pki/authorities/local/root.crt`
+  (`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`).
+  Without it the download still works but logs
+  `no OTA_CA_CERT configured, server certificate NOT verified`. Note: the
+  ESP32 checks the certificate's name against the URL host — test one OTA
+  on a bench device first, especially if `PUBLIC_URL` uses an IP address.
+- Relays are forced to IDLE (min-off armed) before every OTA download, the
+  download has connect/read timeouts, and the task watchdog stays armed
+  (120 s, fed per chunk) instead of being disabled.
+- Relay pins now latch the OFF level before becoming outputs, so active-low
+  relay boards no longer click on at boot.
+- These firmware changes take effect after flashing the new build once
+  (USB/WebSerial or the existing OTA path). The firmware is built against
+  `platform = espressif32 @ 6.12.0` (pinned; newer 8.x/Arduino 3.x does not
+  compile this code base yet).
+
 ## Tests
 
 `pnpm -r test` runs backend + shared-types unit tests (frontend has none yet). `pnpm -r typecheck` and `pnpm -r build` across the whole workspace — run `build` before `typecheck`/`test` on a clean checkout, since `shared-types` is a compiled package the others need `dist/` from. Firmware: `pio test -e native` (control-loop logic, no hardware) and `pio run -e <env>` (real compile check) per board under `firmware/`.

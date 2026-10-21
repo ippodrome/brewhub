@@ -118,6 +118,8 @@ Short ADRs for the choices made in `claude.md` §0. Each follows: Decision, Cont
 
 **Consequences**: Mosquitto config must ship with a password file / ACLs from the start, not as an afterthought — "no TLS" must not become "no auth either."
 
+**Update (security review, 2026-10)**: the bundled broker shipped without an ACL, so any authenticated client could publish `config`/`ota` to any device, and devices downloaded OTA images from whatever URL arrived with `setInsecure()`. Now: `docker/mosquitto/acl` (per-device `%u` patterns, backend-only command topics), a compiled-in OTA URL prefix check (`OtaUrlPolicy`), optional CA pinning via `OTA_CA_CERT` (falls back to the old unverified TLS with a warning so existing devices keep updating), and `MQTT_BIND_ADDRESS` to limit where plaintext 1883 is published. Still no TLS on MQTT itself — same LAN threat model. See README "Security hardening".
+
 ---
 
 ## ADR-009: OTA/flash endpoint auth
