@@ -1,0 +1,24 @@
+# Mosquitto ACL for BrewHub (see README "MQTT ACLs").
+#
+# Model: the backend is the only client allowed to send commands
+# (config/ota) to devices. Every device logs in with a username that is
+# EXACTLY its DEVICE_ID, and may only touch its own unibrew/<id>/... topics.
+
+# Backend: full access to BrewHub topics and Home Assistant discovery.
+user brewhub-backend
+topic readwrite unibrew/#
+topic readwrite homeassistant/#
+
+# Optional read-only consumer (e.g. Home Assistant). Uncomment and create
+# the user with mosquitto_passwd if you need it.
+# user homeassistant
+# topic read unibrew/#
+# topic read homeassistant/#
+
+# Devices (pattern rules apply to every user, %u = MQTT username = DEVICE_ID).
+pattern write unibrew/%u/status
+pattern write unibrew/%u/telemetry
+pattern write unibrew/%u/discovery
+pattern write unibrew/%u/gravity
+pattern read unibrew/%u/config
+pattern read unibrew/%u/ota

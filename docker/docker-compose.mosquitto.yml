@@ -12,10 +12,16 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      # Plaintext MQTT (ADR-008). Bind to the host's LAN IP (or 127.0.0.1 if
+      # no device connects from outside this host) via MQTT_BIND_ADDRESS in
+      # .env, so the port is not exposed on every interface (e.g. VPN,
+      # docker bridges, a second NIC). Defaults to 0.0.0.0 for backwards
+      # compatibility.
+      - "${MQTT_BIND_ADDRESS:-0.0.0.0}:1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
     healthcheck:
