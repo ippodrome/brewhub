@@ -39,12 +39,12 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
   }
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-4">
+    <div className="modal-backdrop fixed inset-0 z-10 flex items-center justify-center bg-[#140d06]/55 backdrop-blur-sm p-4">
       <form
         onSubmit={handleSubmit}
-        className="modal-panel w-full max-w-md space-y-4 rounded-2xl border border-line bg-card p-6"
+        className="modal-panel card w-full max-w-md space-y-4 p-7 shadow-lift"
       >
-        <h2 className="text-lg font-semibold text-fg">Add device</h2>
+        <h2 className="font-display text-xl font-semibold text-fg">Add device</h2>
 
         {discoveredQuery.data && discoveredQuery.data.length > 0 && (
           <div className="space-y-1.5 rounded-xl border border-line bg-surface p-2.5">
@@ -73,7 +73,7 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         <div className="space-y-1">
           <label className="text-sm text-muted">Device ID</label>
           <input
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
+            className="field"
             placeholder="fermenter-01"
             value={id}
             onChange={(e) => setId(e.target.value)}
@@ -86,7 +86,7 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         <div className="space-y-1">
           <label className="text-sm text-muted">Name</label>
           <input
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
+            className="field"
             placeholder="Fermenter 1"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -97,7 +97,7 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         <div className="space-y-1">
           <label className="text-sm text-muted">Type</label>
           <select
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
+            className="field"
             value={type}
             onChange={(e) => setType(e.target.value as DeviceType)}
           >
@@ -112,7 +112,7 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
         <div className="space-y-1">
           <label className="text-sm text-muted">Chamber (optional)</label>
           <input
-            className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-fg outline-none focus:border-line-focus"
+            className="field"
             placeholder="Garage"
             value={chamberName}
             onChange={(e) => setChamberName(e.target.value)}
@@ -132,7 +132,7 @@ export function AddDeviceModal({ onClose }: { onClose: () => void }): JSX.Elemen
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="rounded-xl bg-amber hover:bg-amber-hi px-4 py-2 text-sm font-medium text-on-amber disabled:opacity-50"
+            className="btn-primary"
           >
             {mutation.isPending ? "Adding..." : "Add device"}
           </button>

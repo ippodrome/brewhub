@@ -43,7 +43,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
           <input
             type="number"
             step="0.1"
-            className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+            className="field px-2.5 py-1.5 text-sm"
             value={setpointC}
             onChange={(e) => setSetpointC(e.target.value)}
           />
@@ -54,7 +54,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
             type="number"
             step="0.1"
             min="0.1"
-            className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+            className="field px-2.5 py-1.5 text-sm"
             value={hysteresisC}
             onChange={(e) => setHysteresisC(e.target.value)}
           />
@@ -64,7 +64,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
       <div className="space-y-1">
         <label className="text-xs text-dim">Mode</label>
         <select
-          className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+          className="field px-2.5 py-1.5 text-sm"
           value={mode}
           onChange={(e) => setMode(e.target.value as Mode)}
         >
@@ -86,7 +86,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
               <input
                 type="number"
                 step="0.1"
-                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+                className="field px-2.5 py-1.5 text-sm"
                 value={kp}
                 onChange={(e) => setKp(e.target.value)}
               />
@@ -96,7 +96,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
               <input
                 type="number"
                 step="0.01"
-                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+                className="field px-2.5 py-1.5 text-sm"
                 value={ki}
                 onChange={(e) => setKi(e.target.value)}
               />
@@ -106,7 +106,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
               <input
                 type="number"
                 step="0.1"
-                className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+                className="field px-2.5 py-1.5 text-sm"
                 value={kd}
                 onChange={(e) => setKd(e.target.value)}
               />
@@ -118,7 +118,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
               type="number"
               step="1"
               min="1"
-              className="w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+              className="field px-2.5 py-1.5 text-sm"
               value={pidWindowMinutes}
               onChange={(e) => setPidWindowMinutes(e.target.value)}
             />
@@ -133,7 +133,7 @@ export function DeviceConfigForm({ device, onClose }: { device: Device; onClose:
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+          className="btn-primary px-3 py-1.5 text-xs"
         >
           {mutation.isPending ? "Saving..." : "Save config"}
         </button>
@@ -175,7 +175,7 @@ function RelayPolarityFields({ device }: { device: Device }): JSX.Element {
   });
 
   const selectClass =
-    "w-full rounded-xl border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+    "field px-2.5 py-1.5 text-sm";
 
   return (
     <div className="space-y-2 border-t border-line pt-3">

@@ -44,7 +44,7 @@ function rejectionMessage(error: unknown): string {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+  "field px-2.5 py-1.5 text-sm";
 const labelClass = "text-xs text-dim";
 const buttonClass =
   "rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg";

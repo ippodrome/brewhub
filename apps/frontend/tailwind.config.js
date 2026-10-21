@@ -44,8 +44,15 @@ export default {
         crit: "rgb(var(--c-crit) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],
+        // Same pairing as reklamovertid.se: a soft optical-size serif for
+        // headings and big numerals, a geometric grotesk for everything else.
+        sans: ["Space Grotesk", "system-ui", "sans-serif"],
+        display: ['"Fraunces Variable"', "Fraunces", "Georgia", "serif"],
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        lift: "var(--shadow-lift)",
+        glow: "var(--glow)",
       },
       transitionTimingFunction: {
         // The built-in CSS easings are too weak to read as intentional.

@@ -12,7 +12,7 @@ import { listDevices } from "../api/devices";
 import { flashViaWebSerial, isWebSerialSupported } from "../firmware/flashViaWebSerial";
 
 const inputClass =
-  "w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus";
+  "field px-2.5 py-1.5 text-sm";
 const labelClass = "text-xs text-dim";
 
 const BOARD_OPTIONS: { value: FirmwareBoard; label: string }[] = [
@@ -181,8 +181,8 @@ export function FirmwareManager(): JSX.Element {
         </p>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-line bg-card p-4">
-        <p className="text-sm font-medium text-muted">Upload a build</p>
+      <form onSubmit={handleSubmit} className="card space-y-3 p-5">
+        <h3 className="font-display text-base font-semibold text-fg">Upload a build</h3>
         <p className="text-xs text-dim">
           Build locally with <code>pio run -e &lt;env&gt;</code> first — the compiled <code>.bin</code> is
           per-device (WiFi/MQTT credentials and device id are baked in at compile time), not a generic image.
@@ -240,7 +240,7 @@ export function FirmwareManager(): JSX.Element {
           <button
             type="submit"
             disabled={uploadMutation.isPending}
-            className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+            className="btn-primary px-3 py-1.5 text-xs"
           >
             {uploadMutation.isPending ? "Uploading..." : "Upload"}
           </button>

@@ -60,7 +60,7 @@ export function DeviceDisplay(): JSX.Element {
   if (!device) {
     return (
       <Centered>
-        <p className="text-2xl text-muted">Unknown device</p>
+        <p className="font-display text-3xl text-muted">Unknown device</p>
         <BackLink />
       </Centered>
     );
@@ -89,11 +89,11 @@ export function DeviceDisplay(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-base px-5 py-6 sm:px-8 sm:py-8">
+    <div className="flex min-h-screen flex-col bg-base px-6 py-6 sm:px-12 sm:py-10">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-fg sm:text-3xl">{device.name}</h1>
-          <p className="mt-0.5 text-sm text-dim">
+          <h1 className="font-display text-3xl font-semibold text-fg sm:text-5xl">{device.name}</h1>
+          <p className="mt-1 text-lg text-muted sm:text-xl">
             {device.chamberName ?? device.type}
           </p>
         </div>
@@ -103,7 +103,7 @@ export function DeviceDisplay(): JSX.Element {
       {/* The whole point of the page: an unreliable reading must not look
           like a reliable one from four metres away. */}
       {(!device.isOnline || freshness !== "live") && (
-        <p className="mt-5 rounded-xl border border-crit/40 bg-crit/10 px-4 py-3 text-lg font-medium text-crit">
+        <p role="alert" className="mt-6 rounded-2xl border border-crit/40 bg-crit/10 px-5 py-4 text-xl font-semibold text-crit sm:text-2xl">
           {!device.isOnline
             ? "Device offline — it keeps controlling on its last settings"
             : freshness === "never"
@@ -112,13 +112,13 @@ export function DeviceDisplay(): JSX.Element {
         </p>
       )}
 
-      <div className="mt-8 flex items-baseline gap-3">
-        <span className="font-display text-7xl font-semibold tabular-nums leading-none text-fg sm:text-8xl">
+      <div className="mt-10 flex items-start gap-2 sm:mt-14">
+        <span className="font-display text-[7.5rem] font-medium tabular-nums leading-[0.85] tracking-tight text-fg sm:text-[12rem] lg:text-[15rem]">
           {control?.temperatureC != null ? control.temperatureC.toFixed(1) : "--.-"}
         </span>
-        <span className="text-3xl text-dim">°C</span>
+        <span className="mt-2 font-display text-4xl text-amber sm:text-6xl">°C</span>
       </div>
-      {control && <p className="mt-2 text-lg text-muted">{labelFor(control.address)}</p>}
+      {control && <p className="mt-4 text-xl font-medium text-muted sm:text-2xl">{labelFor(control.address)}</p>}
 
       {config && markers.length > 0 && (
         <div className="mt-8">
@@ -138,10 +138,10 @@ export function DeviceDisplay(): JSX.Element {
         <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
           {others.map((sensor) => (
             <div key={sensor.address}>
-              <dt className="text-sm text-dim">{labelFor(sensor.address)}</dt>
-              <dd className="font-display text-3xl font-semibold tabular-nums text-muted sm:text-4xl">
+              <dt className="text-base text-muted sm:text-lg">{labelFor(sensor.address)}</dt>
+              <dd className="font-display text-4xl font-medium tabular-nums text-fg sm:text-6xl">
                 {(sensor.temperatureC as number).toFixed(1)}
-                <span className="ml-1 text-xl text-dim">°C</span>
+                <span className="ml-1 text-2xl text-dim sm:text-3xl">°C</span>
               </dd>
             </div>
           ))}
@@ -154,7 +154,7 @@ export function DeviceDisplay(): JSX.Element {
         </div>
       )}
 
-      <p className="mt-10 text-sm tabular-nums text-dim">
+      <p className="mt-auto pt-10 text-base tabular-nums text-dim">
         {telemetry ? `Updated ${Math.max(0, Math.round((now - telemetry.ts) / 1000))}s ago` : "No data yet"}
       </p>
     </div>
@@ -171,7 +171,7 @@ function BackLink(): JSX.Element {
   return (
     <Link
       to="/"
-      className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-dim hover:bg-tint hover:text-fg"
+      className="btn-ghost shrink-0"
     >
       <ArrowLeft className="h-4 w-4" strokeWidth={2} />
       Dashboard

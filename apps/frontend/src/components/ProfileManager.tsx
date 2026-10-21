@@ -246,7 +246,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
       <form onSubmit={handleSubmit} className="space-y-2 border-t border-line pt-3">
         <p className="text-xs font-medium text-muted">New profile</p>
         <input
-          className="w-full rounded-xl border border-line-strong bg-card px-2 py-1.5 text-sm text-fg outline-none focus:border-line-focus"
+          className="field px-2.5 py-1.5 text-sm"
           placeholder="Ale ferment"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -286,7 +286,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                       <input
                         type="number"
                         min={0}
-                        className="w-14 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                        className="field w-14 px-2 py-1 text-xs"
                         value={days}
                         onChange={(e) => setPart({ days: Math.max(0, Number(e.target.value)) })}
                         title="Days from profile start"
@@ -298,7 +298,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                         type="number"
                         min={0}
                         max={23}
-                        className="w-12 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                        className="field w-12 px-2 py-1 text-xs"
                         value={hours}
                         onChange={(e) => setPart({ hours: Math.max(0, Number(e.target.value)) })}
                         title="Hours"
@@ -310,7 +310,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                         type="number"
                         min={0}
                         max={59}
-                        className="w-12 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                        className="field w-12 px-2 py-1 text-xs"
                         value={minutes}
                         onChange={(e) => setPart({ minutes: Math.max(0, Number(e.target.value)) })}
                         title="Minutes"
@@ -320,7 +320,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                     <input
                       type="number"
                       step="0.1"
-                      className="w-20 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                      className="field w-20 px-2 py-1 text-xs"
                       value={step.targetC}
                       onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
                     />
@@ -342,7 +342,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   <input
                     type="number"
                     step="0.001"
-                    className="w-24 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                    className="field w-24 px-2 py-1 text-xs"
                     value={step.atGravitySg}
                     onChange={(e) => updateGravityStep(i, { atGravitySg: Number(e.target.value) })}
                     title="Specific gravity threshold"
@@ -351,7 +351,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
                   <input
                     type="number"
                     step="0.1"
-                    className="w-20 rounded-xl border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none focus:border-line-focus"
+                    className="field w-20 px-2 py-1 text-xs"
                     value={step.targetC}
                     onChange={(e) => updateGravityStep(i, { targetC: Number(e.target.value) })}
                   />
@@ -381,7 +381,7 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="rounded-xl bg-amber hover:bg-amber-hi px-3 py-1.5 text-xs font-medium text-on-amber disabled:opacity-50"
+            className="btn-primary px-3 py-1.5 text-xs"
           >
             {createMutation.isPending ? "Creating..." : "Create profile"}
           </button>

@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@brewhub/shared-types": "workspace:*",
-    "@fontsource/inter": "^5.2.8",
+    "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/space-grotesk": "^5.2.10",
     "@tanstack/react-query": "^5.59.0",
     "esptool-js": "^0.6.0",
