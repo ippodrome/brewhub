@@ -9,6 +9,7 @@
 #include "RaptParser.h"
 #include "TiltParser.h"
 #include "secrets.h"
+#include "OtaSecrets.h"
 
 using unibrew::GravityReading;
 using unibrew::MqttClientWrapper;
@@ -52,9 +53,9 @@ void onOtaMessage(const uint8_t* payload, unsigned int length) {
     Serial.printf("[ota] update requested: version=%s url=%s\n",
                   doc["version"].is<const char*>() ? doc["version"].as<const char*>() : "?", url);
 
-    esp_task_wdt_delete(nullptr);
-    otaUpdater.begin(url, md5);
-    esp_task_wdt_add(nullptr); // only reached on failure
+    // Watchdog stays armed during the download (longer timeout, fed per
+    // chunk inside OtaUpdater) and is restored on failure.
+    otaUpdater.begin(url, md5, unibrew::otaOptionsFromSecrets(kWatchdogTimeoutS));
 }
 
 void connectWiFi() {
