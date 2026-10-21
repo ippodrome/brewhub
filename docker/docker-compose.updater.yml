@@ -1,0 +1,90 @@
+# In-app updates (opt-in). See docs/UPDATERING.md for the full setup.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.updater.yml up -d
+#   (or set COMPOSE_FILE=docker-compose.yml:docker-compose.updater.yml in .env)
+#
+# Security model:
+#   * backend/caddy never see Docker. Only `updater` can, and only via
+#     `docker-proxy`, which exposes a filtered subset of the Docker API.
+#   * docker-proxy sits alone with the updater on an `internal` network:
+#     no host port, no internet, unreachable from backend/caddy.
+#   * updater has no host port either; the backend reaches it on the
+#     compose network with a shared secret (UPDATER_SECRET).
+#   * updater can only pull/recreate `backend` and `caddy` of THIS project,
+#     to the version GitHub reports as the latest release.
+
+services:
+  docker-proxy:
+    # Pinned: this is the security boundary, don't let it float.
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    restart: unless-stopped
+    environment:
+      # What `docker compose pull/stop/up/ps` needs — nothing else.
+      # Everything not listed (exec, build, swarm, secrets, plugins, system,
+      # auth, …) is denied by the proxy.
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      INFO: 1
+      VERSION: 1
+      PING: 1
+      POST: 1
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - updater-docker
+
+  updater:
+    image: ghcr.io/ippodrome/brewhub-updater:${BREWHUB_UPDATER_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - docker-proxy
+    environment:
+      UPDATER_SECRET: ${UPDATER_SECRET:?set UPDATER_SECRET in .env (openssl rand -hex 32)}
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:?set COMPOSE_PROJECT_NAME in .env to the name in `docker compose ls`}
+      # Absolute HOST path of this directory; it's mounted at the same path
+      # inside so relative bind mounts (./mosquitto/…) resolve identically.
+      COMPOSE_DIR: ${BREWHUB_COMPOSE_DIR:?set BREWHUB_COMPOSE_DIR in .env to this directory's absolute path}
+      COMPOSE_FILES: ${BREWHUB_COMPOSE_FILES:-docker-compose.yml:docker-compose.updater.yml}
+      GITHUB_REPO: ${BREWHUB_GITHUB_REPO:-ippodrome/brewhub}
+      GITHUB_TOKEN: ${BREWHUB_GITHUB_TOKEN:-}
+      KEEP_BACKUPS: ${BREWHUB_KEEP_BACKUPS:-5}
+      UPDATER_DRY_RUN: ${UPDATER_DRY_RUN:-0}
+      DOCKER_HOST: tcp://docker-proxy:2375
+      DOCKER_CONFIG: /docker-config
+      HOME: /tmp
+    volumes:
+      - ${BREWHUB_COMPOSE_DIR}:${BREWHUB_COMPOSE_DIR}
+      - backend-data:/data
+      - updater-state:/state
+      # Registry login for pulling private images (see UPDATERING.md).
+      # Leave the directory empty if the packages are public.
+      - ${BREWHUB_DOCKER_AUTH_DIR:-./docker-auth}:/docker-config:ro
+    # Needs root only to read/write the root-owned database volume and .env;
+    # every other capability is dropped and the filesystem is read-only.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+      - updater-docker
+
+  backend:
+    environment:
+      UPDATER_URL: http://updater:8080
+      UPDATER_SECRET: ${UPDATER_SECRET}
+
+networks:
+  updater-docker:
+    internal: true
+
+volumes:
+  updater-state:

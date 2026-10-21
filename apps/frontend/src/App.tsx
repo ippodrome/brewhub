@@ -16,6 +16,7 @@ import { useLiveTelemetry } from "./ws/useLiveTelemetry";
 import { StatusDot } from "./components/StatusDot";
 import { summarizeConnection } from "./lib/status";
 import { BrandMark } from "./components/BrandMark";
+import { UpdateBanner } from "./components/UpdateBanner";
 
 // Firmware lives inside Settings (see pages/Settings.tsx) rather than as its
 // own top-level destination — it's a device-management detail. Guide is
@@ -106,6 +107,7 @@ function Shell(): JSX.Element {
             )}
           </div>
         </div>
+        <UpdateBanner />
       </header>
       <main id="main" className="pb-24 sm:pb-8">
         <Outlet />

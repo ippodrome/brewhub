@@ -3,12 +3,10 @@ name: Publish backend image
 on:
   push:
     branches: [main]
-    tags: ["v*.*.*"]
     # Only rebuild when something the backend image actually contains has
     # changed — a frontend-only or docs-only push was rebuilding and
-    # republishing an identical image before this. Tag pushes always
-    # trigger regardless of paths (GitHub doesn't evaluate path filters for
-    # tag events), which is what we want for an intentional release.
+    # republishing an identical image before this. Releases (v* tags) are
+    # handled by release.yml.
     paths:
       - "apps/backend/**"
       - "packages/shared-types/**"
@@ -42,18 +40,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # latest + sha-<short> on every push to main, semver tags (1.2.3 / 1.2
-      # / 1) when a vX.Y.Z tag is pushed — the same image, multiple names.
       - uses: docker/metadata-action@v5
         id: meta
         with:
           images: ghcr.io/ippodrome/brewhub-backend
+          # main builds are "edge" + sha-<short>. Version tags and `latest`
+          # come only from release.yml, after tests, so `latest` always
+          # means "the newest release" — never an untested main commit.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=edge,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
 
       - uses: docker/build-push-action@v6
         with:
