@@ -1,83 +1,102 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  Device,
-  GravityProfileStep,
-  ImportProfilesResult,
-  TimeProfileStep,
-} from "@brewhub/shared-types";
+import { BookmarkPlus, Copy, Download, Trash2 } from "lucide-react";
+import type { Device, ImportProfilesResult, Profile } from "@brewhub/shared-types";
 import {
   createProfile,
   deleteProfile,
   downloadProfileExport,
   importProfiles,
   listProfiles,
+  saveProfileAsTemplate,
+  updateProfile,
 } from "../api/profiles";
 import { listHydrometers } from "../api/hydrometers";
 import { updateDeviceConfig } from "../api/devices";
+import { editTouchesPassedSteps, toRequest, type StepDraft } from "../lib/profile-steps";
+import { StepEditor } from "./StepEditor";
+import { OverflowMenu } from "./OverflowMenu";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ProfileProgress, stepLabel, useActiveProgress } from "./ProfileProgress";
 
-const EMPTY_TIME_STEPS: TimeProfileStep[] = [
-  { atMinutes: 0, targetC: 20 },
-  { atMinutes: 1440, targetC: 20 },
-];
+type EditorState =
+  | { mode: "new" }
+  | { mode: "edit"; profile: Profile }
+  | { mode: "duplicate"; profile: Profile };
 
-/** atMinutes is still the storage/wire format (shared-types, backend interpolation) — this is purely a friendlier input for it. */
-function splitMinutes(totalMinutes: number): { days: number; hours: number; minutes: number } {
-  const clamped = Math.max(0, Math.floor(totalMinutes));
-  const days = Math.floor(clamped / 1440);
-  const hours = Math.floor((clamped % 1440) / 60);
-  const minutes = clamped % 60;
-  return { days, hours, minutes };
+function draftOf(profile: Profile): StepDraft {
+  return profile.triggerType === "time"
+    ? { triggerType: "time", steps: profile.steps }
+    : { triggerType: "gravity", steps: profile.steps };
 }
-function combineMinutes(days: number, hours: number, minutes: number): number {
-  return Math.max(0, days) * 1440 + Math.max(0, hours) * 60 + Math.max(0, minutes);
+
+function describe(profile: Profile): string {
+  return `${profile.triggerType === "gravity" ? "Gravity-based" : "Time-based"} · ${profile.steps.length} ${
+    profile.steps.length === 1 ? "step" : "steps"
+  }`;
 }
-const EMPTY_GRAVITY_STEPS: GravityProfileStep[] = [
-  { atGravitySg: 1.05, targetC: 20 },
-  { atGravitySg: 1.01, targetC: 20 },
-];
 
 export function ProfileManager({ device, onClose }: { device: Device; onClose: () => void }): JSX.Element {
-  const [name, setName] = useState("");
-  const [triggerType, setTriggerType] = useState<"time" | "gravity">("time");
-  const [timeSteps, setTimeSteps] = useState<TimeProfileStep[]>(EMPTY_TIME_STEPS);
-  const [gravitySteps, setGravitySteps] = useState<GravityProfileStep[]>(EMPTY_GRAVITY_STEPS);
+  const [editor, setEditor] = useState<EditorState>({ mode: "new" });
   const [importResult, setImportResult] = useState<ImportProfilesResult | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Profile | null>(null);
   const queryClient = useQueryClient();
 
-  const profilesQuery = useQuery({
-    queryKey: ["profiles", device.id],
-    queryFn: () => listProfiles(device.id),
-  });
+  const profilesQuery = useQuery({ queryKey: ["profiles", device.id], queryFn: () => listProfiles(device.id) });
+  const progressQuery = useActiveProgress(device.id);
+  const progress = progressQuery.data?.active ? progressQuery.data : null;
+  const activeId = progress?.profile.id ?? null;
 
   const hydrometersQuery = useQuery({ queryKey: ["hydrometers"], queryFn: listHydrometers });
   const hasHydrometer = (hydrometersQuery.data ?? []).some((h) => h.fermenterDeviceId === device.id);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      triggerType === "time"
-        ? createProfile(device.id, { name, triggerType: "time", steps: timeSteps })
-        : createProfile(device.id, { name, triggerType: "gravity", steps: gravitySteps }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profiles", device.id] });
-      setName("");
-      setTimeSteps(EMPTY_TIME_STEPS);
-      setGravitySteps(EMPTY_GRAVITY_STEPS);
+  function refresh(): void {
+    queryClient.invalidateQueries({ queryKey: ["profiles", device.id] });
+    queryClient.invalidateQueries({ queryKey: ["profile-progress", device.id] });
+    queryClient.invalidateQueries({ queryKey: ["devices"] });
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: ({ name, draft }: { name: string; draft: StepDraft }) =>
+      editor.mode === "edit"
+        ? updateProfile(device.id, editor.profile.id, toRequest(name, draft))
+        : createProfile(device.id, toRequest(name, draft)),
+    onSuccess: (saved) => {
+      setNotice(
+        editor.mode === "edit"
+          ? saved.id === activeId
+            ? `Saved “${saved.name}”. The running profile keeps its start time and the new target applies now.`
+            : `Saved “${saved.name}”.`
+          : `Created “${saved.name}”.`,
+      );
+      setEditor({ mode: "new" });
+      refresh();
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (profileId: number) => deleteProfile(device.id, profileId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles", device.id] }),
+    onSuccess: () => {
+      setConfirmDelete(null);
+      refresh();
+    },
   });
 
   const activateMutation = useMutation({
-    mutationFn: (activeProfileId: number | null) =>
-      updateDeviceConfig(device.id, { activeProfileId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["devices"] }),
+    mutationFn: (activeProfileId: number | null) => updateDeviceConfig(device.id, { activeProfileId }),
+    onSuccess: refresh,
   });
 
-  // undefined = every profile on the device; a number = just that one.
+  const templateMutation = useMutation({
+    mutationFn: (profileId: number) => saveProfileAsTemplate(device.id, profileId),
+    onSuccess: (t) => {
+      setNotice(`Saved “${t.name}” to Templates — apply it to any fermenter from there.`);
+      queryClient.invalidateQueries({ queryKey: ["profile-templates"] });
+    },
+  });
+
   const exportMutation = useMutation({
     mutationFn: (profileId: number | undefined) => downloadProfileExport(device.id, profileId),
   });
@@ -86,131 +105,159 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
     mutationFn: (file: File) => importProfiles(device.id, file),
     onSuccess: (result) => {
       setImportResult(result);
-      queryClient.invalidateQueries({ queryKey: ["profiles", device.id] });
+      refresh();
     },
     onError: () => setImportResult(null),
   });
 
-  function updateTimeStep(index: number, patch: Partial<TimeProfileStep>): void {
-    setTimeSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
-  }
-  function updateGravityStep(index: number, patch: Partial<GravityProfileStep>): void {
-    setGravitySteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
-  }
-
-  function addStep(): void {
-    if (triggerType === "time") {
-      const last = timeSteps[timeSteps.length - 1];
-      setTimeSteps((prev) => [...prev, { atMinutes: (last?.atMinutes ?? 0) + 1440, targetC: last?.targetC ?? 20 }]);
-    } else {
-      const last = gravitySteps[gravitySteps.length - 1];
-      setGravitySteps((prev) => [
-        ...prev,
-        { atGravitySg: Math.max((last?.atGravitySg ?? 1.05) - 0.01, 1.0), targetC: last?.targetC ?? 20 },
-      ]);
-    }
-  }
-
-  function removeStep(index: number): void {
-    if (triggerType === "time") {
-      setTimeSteps((prev) => prev.filter((_, i) => i !== index));
-    } else {
-      setGravitySteps((prev) => prev.filter((_, i) => i !== index));
-    }
-  }
-
-  function handleSubmit(event: FormEvent): void {
-    event.preventDefault();
-    createMutation.mutate();
-  }
+  const editingActive = editor.mode === "edit" && editor.profile.id === activeId && progress;
+  const warn = editingActive
+    ? (draft: StepDraft) =>
+        editTouchesPassedSteps(draftOf(editor.profile), draft, progress)
+          ? `You're changing steps this brew has already been through (${stepLabel(progress).toLowerCase()}). The start time is kept, so the target jumps to wherever the new steps say it should be right now.`
+          : null
+    : undefined;
 
   return (
-    <div className="mt-3 space-y-4 rounded-xl border border-line bg-surface p-4">
+    <div className="mt-4 space-y-5 rounded-2xl border border-line bg-surface p-4 sm:p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-fg">Profiles</h3>
+        <h3 className="font-display text-base font-semibold text-fg">Fermentation profiles</h3>
         <button onClick={onClose} className="text-xs text-dim hover:text-fg">
           Close
         </button>
       </div>
 
-      {profilesQuery.isLoading && <p className="text-xs text-dim">Loading profiles...</p>}
+      {progress && <ProfileProgress deviceId={device.id} />}
+
+      {notice && (
+        <p className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok" role="status">
+          {notice}
+        </p>
+      )}
+
+      {profilesQuery.isLoading && <p className="text-xs text-dim">Loading profiles…</p>}
       {profilesQuery.data && profilesQuery.data.length === 0 && (
-        <p className="text-xs text-dim">No profiles yet.</p>
+        <p className="text-sm text-muted">
+          No profiles yet. Create one below, or start from a{" "}
+          <Link to="/templates" className="text-amber underline-offset-2 hover:underline">
+            template
+          </Link>
+          .
+        </p>
       )}
       {profilesQuery.data && profilesQuery.data.length > 0 && (
         <ul className="space-y-2">
-          {profilesQuery.data.map((profile) => (
-            <li
-              key={profile.id}
-              className="flex items-center justify-between rounded-xl border border-line bg-card px-3 py-2"
-            >
-              <div>
-                <p className="text-sm text-fg">{profile.name}</p>
-                <p className="text-xs text-dim">
-                  {profile.triggerType === "gravity" ? "Gravity-based" : "Time-based"} · {profile.steps.length} steps
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => activateMutation.mutate(profile.id)}
-                  disabled={activateMutation.isPending}
-                  className="rounded-xl px-2.5 py-1 text-xs text-ok hover:bg-ok/10"
-                >
-                  Activate
-                </button>
-                <button
-                  onClick={() => exportMutation.mutate(profile.id)}
-                  disabled={exportMutation.isPending}
-                  title="Download this profile as a file you can import on another device"
-                  className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-                >
-                  Export
-                </button>
-                <button
-                  onClick={() => deleteMutation.mutate(profile.id)}
-                  disabled={deleteMutation.isPending}
-                  className="rounded-xl px-2.5 py-1 text-xs text-dim hover:bg-tint hover:text-crit"
-                >
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
+          {profilesQuery.data.map((profile) => {
+            const isActive = profile.id === activeId;
+            return (
+              <li
+                key={profile.id}
+                className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-3 py-2.5 ${
+                  isActive ? "border-amber/40" : "border-line"
+                }`}
+              >
+                <div className="min-w-[13rem] flex-1">
+                  <p className="flex items-center gap-2 text-sm font-medium text-fg">
+                    <span className="truncate">{profile.name}</span>
+                    {isActive && <span className="pill bg-amber/10 text-amber">Running</span>}
+                  </p>
+                  <p className="text-xs text-dim">
+                    {describe(profile)}
+                    {isActive && progress ? ` · ${stepLabel(progress)}` : ""}
+                  </p>
+                </div>
+                <div className="-mr-1 ml-auto flex items-center gap-1">
+                  {isActive ? (
+                    <button
+                      onClick={() => activateMutation.mutate(null)}
+                      disabled={activateMutation.isPending}
+                      className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
+                    >
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => activateMutation.mutate(profile.id)}
+                      disabled={activateMutation.isPending}
+                      className="rounded-xl px-2.5 py-1 text-xs font-medium text-ok hover:bg-ok/10"
+                    >
+                      Activate
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditor({ mode: "edit", profile })}
+                    className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
+                  >
+                    Edit
+                  </button>
+                  <OverflowMenu
+                    label={`More actions for ${profile.name}`}
+                    items={[
+                      { label: "Duplicate", icon: Copy, onSelect: () => setEditor({ mode: "duplicate", profile }) },
+                      { label: "Save as template", icon: BookmarkPlus, onSelect: () => templateMutation.mutate(profile.id) },
+                      { label: "Export file", icon: Download, onSelect: () => exportMutation.mutate(profile.id) },
+                      { label: "Delete…", icon: Trash2, destructive: true, onSelect: () => setConfirmDelete(profile) },
+                    ]}
+                  />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
+      <StepEditor
+        key={editor.mode === "new" ? "new" : `${editor.mode}-${editor.profile.id}`}
+        title={
+          editor.mode === "edit"
+            ? `Edit ${editor.profile.name}${editor.profile.id === activeId ? " · running" : ""}`
+            : editor.mode === "duplicate"
+              ? `Duplicate ${editor.profile.name}`
+              : "New profile"
+        }
+        initialName={
+          editor.mode === "edit" ? editor.profile.name : editor.mode === "duplicate" ? `${editor.profile.name} (copy)` : ""
+        }
+        initialDraft={editor.mode === "new" ? undefined : draftOf(editor.profile)}
+        allowGravity={hasHydrometer}
+        submitLabel={editor.mode === "edit" ? "Save changes" : "Create profile"}
+        pending={saveMutation.isPending}
+        error={saveMutation.isError ? "Could not save the profile. Check the steps and try again." : null}
+        warn={warn}
+        onSubmit={(name, draft) => saveMutation.mutate({ name, draft })}
+        onCancel={editor.mode === "new" ? undefined : () => setEditor({ mode: "new" })}
+      />
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <button
           onClick={() => exportMutation.mutate(undefined)}
           disabled={exportMutation.isPending || !profilesQuery.data?.length}
-          className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-40"
+          className="chip disabled:opacity-40"
         >
           Export all
         </button>
-        <label className="cursor-pointer rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg">
-          {importMutation.isPending ? "Importing..." : "Import"}
+        <label className="chip cursor-pointer">
+          {importMutation.isPending ? "Importing…" : "Import file"}
           <input
             type="file"
             accept="application/json,.json"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              // Reset so re-picking the same file fires change again.
               e.target.value = "";
               if (file) importMutation.mutate(file);
             }}
           />
         </label>
-        <p className="text-xs text-dim">
-          Profiles are portable — export one to reuse it on another chamber, or share it.
-        </p>
+        <Link to="/templates" className="chip">
+          Templates
+        </Link>
       </div>
 
       {importResult && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 text-xs text-ok">
           <p>
-            Imported {importResult.imported.length}{" "}
-            {importResult.imported.length === 1 ? "profile" : "profiles"}.
+            Imported {importResult.imported.length} {importResult.imported.length === 1 ? "profile" : "profiles"}.
           </p>
           {importResult.imported.some((p) => p.renamedFrom) && (
             <p className="mt-0.5 opacity-80">
@@ -231,162 +278,27 @@ export function ProfileManager({ device, onClose }: { device: Device; onClose: (
             : "Could not import that file — it doesn't look like a BrewHub profile export."}
         </p>
       )}
-      {exportMutation.isError && (
-        <p className="text-xs text-crit">Could not export.</p>
+      {(exportMutation.isError || templateMutation.isError || activateMutation.isError) && (
+        <p className="text-xs text-crit">
+          {activateMutation.isError ? "Could not change the active profile." : "Something went wrong. Try again."}
+        </p>
       )}
 
-      <button
-        onClick={() => activateMutation.mutate(null)}
-        disabled={activateMutation.isPending}
-        className="text-xs text-dim underline underline-offset-2 hover:text-fg"
-      >
-        Stop following a profile
-      </button>
-
-      <form onSubmit={handleSubmit} className="space-y-2 border-t border-line pt-3">
-        <p className="text-xs font-medium text-muted">New profile</p>
-        <input
-          className="field px-2.5 py-1.5 text-sm"
-          placeholder="Ale ferment"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-
-        <div className="flex gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setTriggerType("time")}
-            className={`rounded-xl px-2.5 py-1 ${triggerType === "time" ? "bg-tint text-fg" : "text-muted"}`}
-          >
-            Time-based
-          </button>
-          <button
-            type="button"
-            onClick={() => hasHydrometer && setTriggerType("gravity")}
-            disabled={!hasHydrometer}
-            title={hasHydrometer ? undefined : "Assign a hydrometer to this device first (see the Hydrometer tab)"}
-            className={`rounded-xl px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${triggerType === "gravity" ? "bg-tint text-fg" : "text-muted"}`}
-          >
-            Gravity-based
-          </button>
-        </div>
-
-        <div className="space-y-1">
-          {triggerType === "time"
-            ? timeSteps.map((step, i) => {
-                const { days, hours, minutes } = splitMinutes(step.atMinutes);
-                const setPart = (patch: Partial<{ days: number; hours: number; minutes: number }>) => {
-                  const next = { days, hours, minutes, ...patch };
-                  updateTimeStep(i, { atMinutes: combineMinutes(next.days, next.hours, next.minutes) });
-                };
-                return (
-                  <div key={i} className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        className="field w-14 px-2 py-1 text-xs"
-                        value={days}
-                        onChange={(e) => setPart({ days: Math.max(0, Number(e.target.value)) })}
-                        title="Days from profile start"
-                      />
-                      <span className="text-xs text-muted">d</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        max={23}
-                        className="field w-12 px-2 py-1 text-xs"
-                        value={hours}
-                        onChange={(e) => setPart({ hours: Math.max(0, Number(e.target.value)) })}
-                        title="Hours"
-                      />
-                      <span className="text-xs text-muted">h</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        max={59}
-                        className="field w-12 px-2 py-1 text-xs"
-                        value={minutes}
-                        onChange={(e) => setPart({ minutes: Math.max(0, Number(e.target.value)) })}
-                        title="Minutes"
-                      />
-                      <span className="text-xs text-muted">min →</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="field w-20 px-2 py-1 text-xs"
-                      value={step.targetC}
-                      onChange={(e) => updateTimeStep(i, { targetC: Number(e.target.value) })}
-                    />
-                    <span className="text-xs text-muted">°C</span>
-                    {timeSteps.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeStep(i)}
-                        className="ml-auto text-xs text-muted hover:text-crit"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            : gravitySteps.map((step, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.001"
-                    className="field w-24 px-2 py-1 text-xs"
-                    value={step.atGravitySg}
-                    onChange={(e) => updateGravityStep(i, { atGravitySg: Number(e.target.value) })}
-                    title="Specific gravity threshold"
-                  />
-                  <span className="text-xs text-muted">SG →</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="field w-20 px-2 py-1 text-xs"
-                    value={step.targetC}
-                    onChange={(e) => updateGravityStep(i, { targetC: Number(e.target.value) })}
-                  />
-                  <span className="text-xs text-muted">°C</span>
-                  {gravitySteps.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeStep(i)}
-                      className="ml-auto text-xs text-muted hover:text-crit"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={addStep}
-          className="text-xs text-dim underline underline-offset-2 hover:text-fg"
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete ${confirmDelete.name}?`}
+          confirmLabel="Delete profile"
+          pendingLabel="Deleting…"
+          pending={deleteMutation.isPending}
+          error={deleteMutation.isError ? "Could not delete the profile." : null}
+          onConfirm={() => deleteMutation.mutate(confirmDelete.id)}
+          onCancel={() => setConfirmDelete(null)}
         >
-          Add step
-        </button>
-
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="btn-primary px-3 py-1.5 text-xs"
-          >
-            {createMutation.isPending ? "Creating..." : "Create profile"}
-          </button>
-        </div>
-      </form>
+          {confirmDelete.id === activeId
+            ? "This profile is running. Deleting it stops it, and the chamber holds its current target."
+            : "Templates made from it are not affected."}
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

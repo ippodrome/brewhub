@@ -5,6 +5,7 @@ import { TemperatureReadout } from "../components/TemperatureReadout";
 import { TapVolumeSummary } from "../components/TapVolumeSummary";
 import { EmptyState } from "../components/EmptyState";
 import { StatusDot } from "../components/StatusDot";
+import { ProfileProgress } from "../components/ProfileProgress";
 import { summarizeFleet } from "../lib/status";
 
 function greeting(date = new Date()): string {
@@ -68,7 +69,9 @@ export function Dashboard(): JSX.Element {
               </h2>
               <div className="grid gap-5 md:grid-cols-2">
                 {fermenters.map((device) => (
-                  <TemperatureReadout key={device.id} device={device} telemetry={telemetryByDevice[device.id]} />
+                  <TemperatureReadout key={device.id} device={device} telemetry={telemetryByDevice[device.id]}>
+                    <ProfileProgress deviceId={device.id} compact />
+                  </TemperatureReadout>
                 ))}
               </div>
             </section>

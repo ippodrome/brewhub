@@ -58,7 +58,9 @@ Either way, frontend/API end up at `https://localhost:8443` (self-signed cert fr
 
 The Caddyfile is baked into the frontend image, not bind-mounted, so that a deployment needs nothing on disk but `docker-compose.yml` and `.env`. Editing it therefore means rebuilding: use the dev overlay (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`), which builds both images from local source.
 
-To upgrade a running deployment to the latest published build:
+**In-app updates:** Settings → Updates can install new releases with an automatic database backup and rollback, via a separate, socket-proxied `updater` service (`docker/docker-compose.updater.yml`). Releases are cut by pushing a `vX.Y.Z` tag (`.github/workflows/release.yml`). Setup and operations guide (Swedish): [docs/UPDATERING.md](docs/UPDATERING.md).
+
+To upgrade a running deployment manually to the latest release:
 
 ```
 docker compose pull && docker compose up -d

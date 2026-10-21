@@ -26,6 +26,9 @@ RUN pnpm install --frozen-lockfile --filter @brewhub/shared-types --filter @brew
 
 # ---- build: shared-types first; the frontend's `tsc -b` needs its output ----
 FROM deps AS build
+# Baked into the bundle (vite define) so Settings can show the UI version.
+ARG BREWHUB_VERSION=dev
+ENV BREWHUB_VERSION=${BREWHUB_VERSION}
 COPY packages/shared-types packages/shared-types
 COPY apps/frontend apps/frontend
 RUN pnpm --filter @brewhub/shared-types build
@@ -33,6 +36,8 @@ RUN pnpm --filter @brewhub/frontend build
 
 # ---- runtime: stock Caddy plus static output; no Node, no toolchain ----
 FROM caddy:2 AS runtime
+ARG BREWHUB_VERSION=dev
+LABEL org.opencontainers.image.version=${BREWHUB_VERSION}
 COPY --from=build /app/apps/frontend/dist /srv/frontend
 COPY docker/caddy/Caddyfile /etc/caddy/Caddyfile
 EXPOSE 8443
