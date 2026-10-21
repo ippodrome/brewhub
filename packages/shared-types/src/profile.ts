@@ -118,3 +118,65 @@ export const ImportProfilesResultSchema = z.object({
   imported: z.array(ImportedProfileSchema),
 });
 export type ImportProfilesResult = z.infer<typeof ImportProfilesResultSchema>;
+
+// --- Editing, templates and progress ---------------------------------------
+
+/** PUT body for a device profile or a template — same shape as create. */
+export const UpdateProfileRequestSchema = CreateProfileRequestSchema;
+export type UpdateProfileRequest = CreateProfileRequest;
+
+const TemplateCommonFields = {
+  id: z.number().int(),
+  name: z.string().min(1),
+  createdAt: z.number().int(),
+};
+
+/**
+ * A device-independent profile. Stored alongside device profiles but with no
+ * device, so it survives device removal and can be applied to any fermenter.
+ * Applying copies it — later edits to the template never touch running brews.
+ */
+export const ProfileTemplateSchema = z.discriminatedUnion("triggerType", [
+  z.object({ ...TemplateCommonFields, triggerType: z.literal("time"), steps: z.array(TimeProfileStepSchema).min(1) }),
+  z.object({ ...TemplateCommonFields, triggerType: z.literal("gravity"), steps: z.array(GravityProfileStepSchema).min(1) }),
+]);
+export type ProfileTemplate = z.infer<typeof ProfileTemplateSchema>;
+
+export const SaveAsTemplateRequestSchema = z.object({ name: z.string().min(1).optional() });
+export type SaveAsTemplateRequest = z.infer<typeof SaveAsTemplateRequestSchema>;
+
+export const ApplyTemplateRequestSchema = z.object({
+  deviceId: z.string().min(1),
+  /** Start following the copy straight away. */
+  activate: z.boolean().optional(),
+  name: z.string().min(1).optional(),
+});
+export type ApplyTemplateRequest = z.infer<typeof ApplyTemplateRequestSchema>;
+
+export const ApplyTemplateResultSchema = z.object({
+  profile: ProfileSchema,
+  activated: z.boolean(),
+});
+export type ApplyTemplateResult = z.infer<typeof ApplyTemplateResultSchema>;
+
+export const ActiveProfileProgressSchema = z.discriminatedUnion("active", [
+  z.object({ active: z.literal(false) }),
+  z.object({
+    active: z.literal(true),
+    profile: ProfileSchema,
+    startedAt: z.number().int(),
+    elapsedMinutes: z.number(),
+    /** 0-based index (into steps sorted in run order) of the step in progress. */
+    stepIndex: z.number().int(),
+    stepCount: z.number().int(),
+    /** Run-ordered steps, so the index above refers to this list. */
+    currentSetpointC: z.number().nullable(),
+    /** Time profiles: minutes from start of the next step; null when on the last step or gravity-driven. */
+    nextChangeAtMinutes: z.number().nullable(),
+    nextTargetC: z.number().nullable(),
+    /** Gravity profiles: the last measured SG, if any. */
+    currentGravitySg: z.number().nullable(),
+    finished: z.boolean(),
+  }),
+]);
+export type ActiveProfileProgress = z.infer<typeof ActiveProfileProgressSchema>;

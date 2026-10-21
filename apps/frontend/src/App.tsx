@@ -1,11 +1,12 @@
 import { Link, NavLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
-import { BookOpen, Cpu, LayoutDashboard, LogOut, Settings as SettingsIcon } from "lucide-react";
+import { BookOpen, Cpu, LayoutDashboard, Layers, LogOut, Settings as SettingsIcon } from "lucide-react";
 import { Dashboard } from "./pages/Dashboard";
 import { DeviceDisplay } from "./pages/DeviceDisplay";
 import { Devices } from "./pages/Devices";
 import { Guide } from "./pages/Guide";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
+import { Templates } from "./pages/Templates";
 import { NotFound } from "./pages/NotFound";
 import { RequireAuth } from "./components/RequireAuth";
 import { WsProvider } from "./ws/WsProvider";
@@ -23,6 +24,7 @@ import { BrandMark } from "./components/BrandMark";
 const NAV_ITEMS = [
   { to: "/", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/devices", end: false, label: "Devices", icon: Cpu },
+  { to: "/templates", end: false, label: "Templates", icon: Layers },
   { to: "/settings", end: false, label: "Settings", icon: SettingsIcon },
 ] as const;
 
@@ -110,7 +112,7 @@ function Shell(): JSX.Element {
       </main>
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-card/90 backdrop-blur-xl sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-card/90 backdrop-blur-xl sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {TAB_ITEMS.map(({ to, end, label, icon: Icon }) => (
@@ -160,6 +162,7 @@ export function App(): JSX.Element {
         <Route element={<Shell />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/devices" element={<Devices />} />
+          <Route path="/templates" element={<Templates />} />
           <Route path="/guide" element={<Guide />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />

@@ -179,3 +179,40 @@ describe("runProfileSchedulerTick", () => {
     expect(mqttClient.publish).not.toHaveBeenCalled();
   });
 });
+
+describe("runProfileSchedulerTick after an edit", () => {
+  it("follows the edited steps from the original start time", async () => {
+    const { updateProfile } = await import("../db/repositories/profiles.repo.js");
+    const db = setUpDevice();
+    const profile = insertProfile(db, "fermenter-01", {
+      name: "Test",
+      triggerType: "time",
+      steps: [
+        { atMinutes: 0, targetC: 18 },
+        { atMinutes: 100, targetC: 20 },
+      ],
+    });
+    const startedAt = 1_000_000;
+    setActiveProfile(db, "fermenter-01", profile.id, startedAt);
+    const mqttClient = makeFakeMqttClient();
+    const logger = makeFakeLogger();
+
+    runProfileSchedulerTick({ db, mqttClient, logger, now: () => startedAt + 50 * 60000 });
+    expect(getDeviceConfig(db, "fermenter-01")!.setpointC).toBe(19);
+
+    // Edit while running: same 50-minute mark now lands halfway to 14.
+    updateProfile(db, profile.id, {
+      name: "Test",
+      triggerType: "time",
+      steps: [
+        { atMinutes: 0, targetC: 18 },
+        { atMinutes: 100, targetC: 14 },
+      ],
+    });
+    runProfileSchedulerTick({ db, mqttClient, logger, now: () => startedAt + 50 * 60000 });
+
+    expect(getDeviceConfig(db, "fermenter-01")!.setpointC).toBe(16);
+    expect(getActiveProfileState(db, "fermenter-01")).toEqual({ activeProfileId: profile.id, profileStartedAt: startedAt });
+    expect(mqttClient.publish).toHaveBeenCalledTimes(2);
+  });
+});
