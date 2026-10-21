@@ -7,6 +7,7 @@ export function ConfirmDialog({
   confirmLabel,
   pendingLabel,
   pending = false,
+  tone = "danger",
   error,
   onConfirm,
   onCancel,
@@ -16,6 +17,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   pendingLabel?: string;
   pending?: boolean;
+  /** "primary" for consequential-but-not-destructive actions (e.g. updating). */
+  tone?: "danger" | "primary";
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -47,7 +50,7 @@ export function ConfirmDialog({
           <button ref={cancelRef} type="button" onClick={onCancel} className="btn-ghost">
             Cancel
           </button>
-          <button type="button" onClick={onConfirm} disabled={pending} className="btn-danger">
+          <button type="button" onClick={onConfirm} disabled={pending} className={tone === "primary" ? "btn-primary" : "btn-danger"}>
             {pending ? (pendingLabel ?? confirmLabel) : confirmLabel}
           </button>
         </div>

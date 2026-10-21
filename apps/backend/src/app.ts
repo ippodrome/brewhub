@@ -19,10 +19,13 @@ import { profilesRoutes } from "./routes/profiles.routes.js";
 import { sensorsRoutes } from "./routes/sensors.routes.js";
 import { tapsRoutes } from "./routes/taps.routes.js";
 import { wsRoutes } from "./routes/ws.routes.js";
+import { systemRoutes } from "./routes/system.routes.js";
 
 export interface AppDeps {
   db: Database.Database;
   config: AppConfig;
+  /** Injected in tests to stand in for the updater service. */
+  fetchImpl?: typeof fetch;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -68,6 +71,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await fastify.register(sensorsRoutes);
   await fastify.register(tapsRoutes);
   await fastify.register(wsRoutes);
+  await fastify.register(systemRoutes, { fetchImpl: deps.fetchImpl ?? fetch });
 
   return fastify;
 }

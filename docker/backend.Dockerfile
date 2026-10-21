@@ -22,7 +22,12 @@ RUN pnpm --filter @brewhub/backend build
 
 # ---- runtime: slim image, no build tools, just the compiled output + resolved node_modules ----
 FROM node:22-bookworm-slim AS runtime
+# Set by the release workflow; reported by /api/health so the updater can
+# confirm the new build is the one answering after an update.
+ARG BREWHUB_VERSION=dev
 ENV NODE_ENV=production
+ENV BREWHUB_VERSION=${BREWHUB_VERSION}
+LABEL org.opencontainers.image.version=${BREWHUB_VERSION}
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared-types ./packages/shared-types

@@ -31,6 +31,15 @@ const EnvSchema = z.object({
   // plenty — this isn't time-sensitive the way presence/profile polling is.
   TELEMETRY_ROLLUP_INTERVAL_MS: z.coerce.number().int().positive().default(86400000),
   TELEMETRY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  // Baked into the published image by the release workflow (build-arg);
+  // "dev" for local/source builds.
+  BREWHUB_VERSION: z.string().min(1).default("dev"),
+  // In-app updates (docs/UPDATERING.md). Both unset = feature off; the
+  // backend never talks to Docker itself, only to the separate updater
+  // service on the internal compose network.
+  UPDATER_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  UPDATER_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32, "UPDATER_SECRET must be at least 32 characters").optional()),
+  UPDATE_CHECK_CACHE_MS: z.coerce.number().int().positive().default(15 * 60_000),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

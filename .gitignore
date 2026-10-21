@@ -17,3 +17,7 @@ apps/frontend/dist/
 .vscode/
 *.log
 .claude/
+
+# registry credentials for the updater
+docker/docker-auth/*
+!docker/docker-auth/README
