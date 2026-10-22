@@ -143,6 +143,8 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.mosquitto.yml:docker-compose.upda
 BREWHUB_COMPOSE_FILES=docker-compose.yml:docker-compose.mosquitto.yml:docker-compose.updater.yml
 ```
 
+> **Egen broker (t.ex. Home Assistants Mosquitto):** välj *Custom* under **Settings → MQTT** i appen, testa anslutningen och spara. Backend kopplar om direkt, utan omstart. Ta sedan bort `docker-compose.mosquitto.yml` ur både `COMPOSE_FILE` och `BREWHUB_COMPOSE_FILES` och kör `docker compose up -d --remove-orphans`, så stoppas den medföljande Mosquitto. Kom ihåg att flasha om varje ESP32 med samma broker i `secrets.h`. ACL-skyddet gäller bara den inbyggda brokern.
+
 > **Compose Manager-pluginet på Unraid:** pluginet skickar egna `-f`-flaggor. Då gäller inte `COMPOSE_FILE`. Klistra i så fall in tjänsterna och nätverket från `docker-compose.updater.yml` i stackens compose-fil via **Edit Stack**. Sätt sedan `BREWHUB_COMPOSE_DIR` till stackens mapp och `BREWHUB_COMPOSE_FILES` till stackens filnamn. Torrkörningen i steg 8 visar om det stämmer.
 
 Skydda filen:

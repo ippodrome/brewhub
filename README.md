@@ -46,6 +46,8 @@ mosquitto_passwd -b -c mosquitto/passwd brewhub-backend <password>   # match MQT
 docker compose -f docker-compose.yml -f docker-compose.mosquitto.yml up
 ```
 
+**Switching broker later, from the UI**: **Settings → MQTT** lets you pick *Built-in (BrewHub Mosquitto)* or *Custom* (host, port, TLS, username, password), test the connection, and save — the backend reconnects and resubscribes live, no container restart. The `MQTT_URL`/`MQTT_USERNAME`/`MQTT_PASSWORD` env values stay the default (and are what *Built-in* uses) until something is saved there. The password is write-only (stored in SQLite, never returned by the API). Devices are not reconfigured automatically: reflash each ESP32 with the same broker in `secrets.h`. The per-device ACL only exists on the built-in broker. With a custom broker you can drop `docker-compose.mosquitto.yml` from `COMPOSE_FILE`/`BREWHUB_COMPOSE_FILES` in `.env` and run `docker compose up -d --remove-orphans` to stop the bundled Mosquitto.
+
 **Testing uncommitted changes to the backend** (not the usual path — most of the time you want the published image above): add the dev overlay, which builds from local source instead of pulling, and don't forget `--build` or Compose won't know anything changed:
 
 ```

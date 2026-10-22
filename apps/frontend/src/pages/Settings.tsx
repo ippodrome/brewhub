@@ -1,5 +1,6 @@
 import { BackupRestore } from "../components/BackupRestore";
 import { FirmwareManager } from "../components/FirmwareManager";
+import { MqttBrokerSettings } from "../components/MqttBrokerSettings";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { UpdateManager } from "../components/UpdateManager";
 
@@ -11,12 +12,17 @@ export function Settings(): JSX.Element {
       <div>
         <p className="eyebrow">System</p>
         <h1 className="page-title mt-1">Settings</h1>
-        <p className="mt-1 text-sm text-muted">Alerts, app and firmware updates, and backups.</p>
+        <p className="mt-1 text-sm text-muted">Alerts, MQTT broker, app and firmware updates, and backups.</p>
       </div>
 
       <section className="space-y-4">
         <h2 className={sectionHeadingClass}>Notifications</h2>
         <NotificationSettings />
+      </section>
+
+      <section className="space-y-4" id="mqtt">
+        <h2 className={sectionHeadingClass}>MQTT</h2>
+        <MqttBrokerSettings />
       </section>
 
       <section className="space-y-4">
