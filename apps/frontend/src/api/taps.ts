@@ -94,3 +94,18 @@ export async function listPours(deviceId: string, tapId: number): Promise<PourEv
   );
   return z.array(PourEventSchema).parse(response);
 }
+
+/** Weight taps reading from a keg_scale device (any kegerator). */
+export async function listWeightTaps(scaleDeviceId: string): Promise<Tap[]> {
+  const response = await apiFetch<unknown>(`/api/devices/${encodeURIComponent(scaleDeviceId)}/weight-taps`);
+  return z.array(TapSchema).parse(response);
+}
+
+/** Captures the scale's latest reading as this tap's empty-keg weight. */
+export async function tareKegNow(deviceId: string, tapId: number): Promise<Tap> {
+  const response = await apiFetch<unknown>(
+    `/api/devices/${encodeURIComponent(deviceId)}/taps/${tapId}/tare-now`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+  return TapSchema.parse(response);
+}
