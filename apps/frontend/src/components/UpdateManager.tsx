@@ -10,6 +10,7 @@ import {
   type UpdateStatus,
 } from "../api/system";
 import { useUpdateCheck } from "../hooks/useUpdateCheck";
+import { interfaceNeedsReload } from "../lib/update-outcome";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 declare const __APP_VERSION__: string;
@@ -89,7 +90,19 @@ function Progress({ status, reconnecting }: { status: UpdateStatus; reconnecting
   );
 }
 
-function Outcome({ status }: { status: UpdateStatus }): JSX.Element | null {
+function Outcome({ status, needsReload }: { status: UpdateStatus; needsReload: boolean }): JSX.Element | null {
+  if (status.state === "succeeded" && !status.dryRun && !needsReload) {
+    // Interface already runs the new version: a quiet confirmation is enough.
+    return (
+      <p className="flex items-center gap-2 text-xs text-muted" data-testid="update-done">
+        <Check className="h-3.5 w-3.5 shrink-0 text-ok" />
+        <span>
+          <span className="font-semibold text-fg">Updated to {status.toVersion}</span>
+          {status.backup ? " · database backed up" : ""}
+        </span>
+      </p>
+    );
+  }
   if (status.state === "succeeded") {
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-ok/30 bg-ok/[0.07] p-4 text-sm">
@@ -314,7 +327,7 @@ export function UpdateManager(): JSX.Element {
               <Progress status={s} reconnecting={reconnecting} />
             )
           ) : (
-            <Outcome status={s} />
+            <Outcome status={s} needsReload={interfaceNeedsReload(uiVersion, version.data?.version)} />
           )}
           {showLog && (
             <pre className="max-h-64 overflow-auto rounded-2xl border border-line bg-surface/60 p-4 text-[11px] leading-relaxed text-muted">
