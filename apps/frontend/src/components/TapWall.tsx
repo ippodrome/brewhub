@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { LOW_VOLUME_THRESHOLD_PERCENT, type Device } from "@brewhub/shared-types";
 import { listTaps } from "../api/taps";
 import { litresFrom, tapFillPercent } from "../lib/taps";
+import { remainingInUnit, useKegUnit } from "../lib/keg-scale";
+import type { Tap } from "@brewhub/shared-types";
 
 /**
  * The tap list, sized for a screen you read standing at the kegerator.
@@ -69,15 +71,33 @@ export function TapWall({ device }: { device: Device }): JSX.Element | null {
               {kicked ? (
                 <p className="text-lg font-medium text-crit">Empty</p>
               ) : (
-                <p className={`font-display text-3xl font-semibold tabular-nums sm:text-4xl ${low ? "text-crit" : "text-fg"}`}>
-                  {litresFrom(tap.remainingVolumeMl)}
-                  <span className="ml-1 text-lg text-dim">L</span>
-                </p>
+                <TapAmount tap={tap} low={low} />
               )}
             </div>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** Litres for flow taps; weight taps follow the scale's kg/L choice (tap the number to switch). */
+function TapAmount({ tap, low }: { tap: Tap; low: boolean }): JSX.Element {
+  const [unit, toggle] = useKegUnit(tap.weightDeviceId, tap.tareWeightG !== null);
+  const isWeight = tap.measurementType === "weight";
+  const r = isWeight ? remainingInUnit(tap, unit) : { value: litresFrom(tap.remainingVolumeMl), label: "L" };
+  const cls = `font-display text-3xl font-semibold tabular-nums sm:text-4xl ${low ? "text-crit" : "text-fg"}`;
+  const inner = (
+    <>
+      {r.value}
+      <span className="ml-1 text-lg text-dim">{r.label}</span>
+    </>
+  );
+  return isWeight ? (
+    <button type="button" onClick={toggle} title="Switch between litres and kilograms" className={cls}>
+      {inner}
+    </button>
+  ) : (
+    <p className={cls}>{inner}</p>
   );
 }

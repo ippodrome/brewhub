@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import {
+  CaptureTareRequestSchema,
+  DEFAULT_BEER_DENSITY_KG_PER_L,
   CreateTapRequestSchema,
   FinishFlowCalibrationRequestSchema,
   UpdateTapRequestSchema,
@@ -15,6 +17,7 @@ import {
   getTapRow,
   insertTap,
   listTapsForDevice,
+  listTapsForWeightDevice,
   resetKeg,
   updateTapDetails,
   type TapRow,
@@ -26,6 +29,7 @@ import {
   type FlowCalibrationSessionRow,
 } from "../db/repositories/flow-calibration.repo.js";
 import { computeFlowCalibration } from "../taps/compute-flow-calibration.js";
+import { latestGrossWeightG, recomputeWeightTap } from "../taps/apply-weight-reading.js";
 import { listPourEventsForTap } from "../db/repositories/pour-events.repo.js";
 import { publishTapVolumeDiscovery, removeTapVolumeDiscovery } from "../mqtt/publish-ha-discovery.js";
 import { publishTapState } from "../mqtt/publish-tap-state.js";
@@ -38,6 +42,50 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
     }
     return listTapsForDevice(fastify.db, id);
   });
+
+  // Weight taps that read from this keg_scale device (they belong to a
+  // kegerator, so the scale's own card can't use /taps).
+  fastify.get("/api/devices/:id/weight-taps", { preHandler: fastify.verifyAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const device = getDevice(fastify.db, id);
+    if (!device) return reply.code(404).send({ error: "Device not found" });
+    if (device.type !== "keg_scale") return reply.code(400).send({ error: "Not a keg_scale device" });
+    return listTapsForWeightDevice(fastify.db, id);
+  });
+
+  // "Tare now": the latest gross reading on the tap's channel becomes the
+  // empty-keg weight. Distinct from the device-level HX711 zero
+  // (tareRequestId), which re-zeroes the platform itself.
+  fastify.post(
+    "/api/devices/:id/taps/:tapId/tare-now",
+    { preHandler: fastify.verifyAuth },
+    async (request, reply) => {
+      const { id, tapId } = request.params as { id: string; tapId: string };
+      const row = getTapRow(fastify.db, Number(tapId));
+      if (!row || row.device_id !== id) return reply.code(404).send({ error: "Tap not found" });
+      if (row.measurement_type !== "weight") {
+        return reply.code(400).send({ error: "Only keg-scale taps have an empty-keg weight" });
+      }
+      const parsed = CaptureTareRequestSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Invalid request body", details: parsed.error.flatten() });
+      }
+      const grams = latestGrossWeightG(fastify.db, row);
+      if (grams === null) {
+        return reply.code(409).send({ error: "No weight reading from the scale yet" });
+      }
+      updateTapDetails(fastify.db, row.id, {
+        tareWeightG: Math.max(0, grams),
+        // A legacy tap that gets tared switches to density-based volume —
+        // its old full-weight point was measured against the previous tare.
+        ...(row.beer_density_kg_per_l === null ? { beerDensityKgPerL: DEFAULT_BEER_DENSITY_KG_PER_L } : {}),
+      });
+      recomputeWeightTap(fastify.db, row.id);
+      const updated = getTap(fastify.db, row.id);
+      if (updated) publishTapState(fastify.mqttClient, id, updated);
+      return updated;
+    },
+  );
 
   fastify.post("/api/devices/:id/taps", { preHandler: fastify.verifyAuth }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -144,6 +192,7 @@ export async function tapsRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         updateTapDetails(fastify.db, numericId, details);
+        if (tap.measurementType === "weight") recomputeWeightTap(fastify.db, numericId);
       }
 
       if (shouldResetKeg) {

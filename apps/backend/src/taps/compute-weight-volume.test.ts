@@ -37,4 +37,16 @@ describe("computeWeightBasedVolume", () => {
     expect(computeWeightBasedVolume(baseInputs({ tareWeightG: 20000, fullWeightG: 20000 }))).toBe(0);
     expect(computeWeightBasedVolume(baseInputs({ tareWeightG: 25000, fullWeightG: 20000 }))).toBe(0);
   });
+
+  it("uses (gross − tare) / density when a density is given", () => {
+    // 4000 g empty corny + 10100 g beer at 1.010 -> 10 L
+    expect(
+      computeWeightBasedVolume(baseInputs({ currentWeightG: 14100, tareWeightG: 4000, densityKgPerL: 1.01 })),
+    ).toBeCloseTo(10000);
+  });
+
+  it("clamps the density path at 0 and at full volume", () => {
+    expect(computeWeightBasedVolume(baseInputs({ currentWeightG: 3900, tareWeightG: 4000, densityKgPerL: 1.01 }))).toBe(0);
+    expect(computeWeightBasedVolume(baseInputs({ currentWeightG: 40000, tareWeightG: 4000, densityKgPerL: 1.01 }))).toBe(19000);
+  });
 });

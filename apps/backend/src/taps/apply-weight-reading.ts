@@ -1,8 +1,19 @@
 import type Database from "better-sqlite3";
 import type { WeightReading } from "@brewhub/shared-types";
-import { applyWeightReadingUpdate, listTapsByWeightChannel } from "../db/repositories/taps.repo.js";
+import {
+  applyWeightReadingUpdate,
+  getTapRow,
+  listTapsByWeightChannel,
+  type TapRow,
+} from "../db/repositories/taps.repo.js";
+import { getRecentWeightReadings } from "../db/repositories/weight-readings.repo.js";
 import { computeWeightBasedVolume } from "./compute-weight-volume.js";
 import { checkLowVolumeCrossing, type LowVolumeEvent } from "./low-volume-event.js";
+
+/** null = legacy tap (interpolate); otherwise FG wins over the stored density. */
+export function tapDensity(tap: TapRow): number | null {
+  return tap.final_gravity_sg ?? tap.beer_density_kg_per_l;
+}
 
 /**
  * Recomputes and persists remaining volume for every tap wired to this
@@ -32,6 +43,7 @@ export function applyWeightReading(
       tareWeightG: tap.tare_weight_g,
       fullWeightG: tap.full_weight_g,
       fullVolumeMl: tap.full_volume_ml,
+      densityKgPerL: tapDensity(tap),
     });
     applyWeightReadingUpdate(db, tap.id, remainingVolumeMl);
 
@@ -40,4 +52,34 @@ export function applyWeightReading(
   }
 
   return events;
+}
+
+/** Latest non-null gross reading (g) for a weight tap's channel, or null. */
+export function latestGrossWeightG(db: Database.Database, tap: TapRow): number | null {
+  if (tap.weight_device_id === null || tap.weight_index === null) return null;
+  const [row] = getRecentWeightReadings(db, tap.weight_device_id, tap.weight_index, 1);
+  return row?.grams ?? null;
+}
+
+/**
+ * Re-derives remaining volume from the latest stored reading after the
+ * user changed tare/density/FG, so the UI doesn't show a stale number until
+ * the next telemetry tick. No-op without a reading.
+ */
+export function recomputeWeightTap(db: Database.Database, tapId: number): void {
+  const tap = getTapRow(db, tapId);
+  if (!tap || tap.measurement_type !== "weight" || tap.tare_weight_g === null || tap.full_weight_g === null) return;
+  const grams = latestGrossWeightG(db, tap);
+  if (grams === null) return;
+  applyWeightReadingUpdate(
+    db,
+    tap.id,
+    computeWeightBasedVolume({
+      currentWeightG: grams,
+      tareWeightG: tap.tare_weight_g,
+      fullWeightG: tap.full_weight_g,
+      fullVolumeMl: tap.full_volume_ml,
+      densityKgPerL: tapDensity(tap),
+    }),
+  );
 }

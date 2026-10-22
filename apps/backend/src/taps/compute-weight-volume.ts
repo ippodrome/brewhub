@@ -3,6 +3,8 @@ export interface WeightVolumeInputs {
   tareWeightG: number;
   fullWeightG: number;
   fullVolumeMl: number;
+  /** When set (1.3.0+ taps), volume = (current − tare) / density instead of interpolation. */
+  densityKgPerL?: number | null;
 }
 
 /**
@@ -19,7 +21,11 @@ export interface WeightVolumeInputs {
  * bad calibration shouldn't crash telemetry processing for every reading.
  */
 export function computeWeightBasedVolume(inputs: WeightVolumeInputs): number {
-  const { currentWeightG, tareWeightG, fullWeightG, fullVolumeMl } = inputs;
+  const { currentWeightG, tareWeightG, fullWeightG, fullVolumeMl, densityKgPerL } = inputs;
+  if (densityKgPerL != null && densityKgPerL > 0) {
+    const ml = Math.max(0, currentWeightG - tareWeightG) / densityKgPerL;
+    return Math.min(fullVolumeMl, ml);
+  }
   const span = fullWeightG - tareWeightG;
   if (span <= 0) return 0;
 

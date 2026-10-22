@@ -11,94 +11,12 @@ import { HydrometerManager } from "./HydrometerManager";
 import { ProfileManager } from "./ProfileManager";
 import { SensorLabelEditor } from "./SensorLabelEditor";
 import { TapManager } from "./TapManager";
+import { KegScaleReadout } from "./KegScaleReadout";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { OverflowMenu, type MenuItem } from "./OverflowMenu";
 import { StatusDot } from "./StatusDot";
 import { timeAgo } from "../lib/status";
 
-function KegScaleReadout({ device }: { device: Device }): JSX.Element {
-  const { telemetryByDevice } = useLiveTelemetry();
-  const grams = telemetryByDevice[device.id]?.weights?.[0]?.grams;
-  const [calibrationOpen, setCalibrationOpen] = useState(false);
-  const [calibrationFactor, setCalibrationFactor] = useState("");
-
-  const tareMutation = useMutation({
-    mutationFn: () => updateDeviceConfig(device.id, { tareRequestId: Date.now() }),
-  });
-
-  const calibrationMutation = useMutation({
-    mutationFn: () => updateDeviceConfig(device.id, { loadCellCalibrationFactor: Number(calibrationFactor) }),
-    onSuccess: () => {
-      setCalibrationOpen(false);
-      setCalibrationFactor("");
-    },
-  });
-
-  function handleCalibrationSubmit(event: FormEvent): void {
-    event.preventDefault();
-    calibrationMutation.mutate();
-  }
-
-  return (
-    <div className="mt-2 space-y-2 border-t border-line pt-2">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-dim">
-          {grams === undefined ? "No reading yet" : grams === null ? "Sensor fault" : `${Math.round(grams)} g`}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCalibrationOpen((v) => !v)}
-            className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg"
-            title="Set the HX711 raw-to-grams calibration factor"
-          >
-            Calibrate
-          </button>
-          <button
-            onClick={() => tareMutation.mutate()}
-            disabled={tareMutation.isPending}
-            className="rounded-xl px-2.5 py-1 text-xs text-muted hover:bg-tint hover:text-fg disabled:opacity-50"
-            title="Zero the scale at its current load — only do this with the platform in its true reference state (see firmware README)"
-          >
-            {tareMutation.isPending ? "Taring..." : "Tare"}
-          </button>
-        </div>
-      </div>
-
-      {calibrationOpen && (
-        <form
-          onSubmit={handleCalibrationSubmit}
-          className="space-y-2 rounded-xl border border-line bg-surface p-3"
-        >
-          <p className="text-xs text-dim">
-            Raw-to-grams calibration factor. Determine it by placing a known reference weight on the platform
-            and adjusting until the reading above is correct — see the keg-scale firmware README.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="any"
-              placeholder="e.g. -22500"
-              className="field px-2.5 py-1.5 text-sm"
-              value={calibrationFactor}
-              onChange={(e) => setCalibrationFactor(e.target.value)}
-              required
-            />
-            <button
-              type="submit"
-              disabled={calibrationMutation.isPending}
-              className="shrink-0 btn-primary px-3 py-1.5 text-xs"
-            >
-              {calibrationMutation.isPending ? "Applying..." : "Apply"}
-            </button>
-          </div>
-          {calibrationMutation.isError && (
-            <p className="text-xs text-crit">Could not apply calibration factor.</p>
-          )}
-        </form>
-      )}
-    </div>
-  );
-}
 
 const TYPE_LABEL: Record<string, string> = {
   kegerator: "Kegerator",

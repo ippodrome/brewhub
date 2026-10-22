@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LOW_VOLUME_THRESHOLD_PERCENT, type Device, type Tap, type TapMeasurementType } from "@brewhub/shared-types";
+import { DEFAULT_BEER_DENSITY_KG_PER_L, KEG_TARE_PRESETS, LOW_VOLUME_THRESHOLD_PERCENT, type Device, type Tap, type TapMeasurementType } from "@brewhub/shared-types";
 import { createTap, deleteTap, listPours, listTaps, updateTap } from "../api/taps";
 import { listDevices } from "../api/devices";
 import { useLiveTelemetry } from "../ws/useLiveTelemetry";
 import { FlowCalibrationPanel } from "./FlowCalibrationPanel";
+import { UnitToggle } from "./KegScaleReadout";
+import { remainingInUnit, useKegUnit } from "../lib/keg-scale";
 
 function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
   const fraction = tap.fullVolumeMl > 0 ? tap.remainingVolumeMl / tap.fullVolumeMl : 0;
@@ -15,6 +17,19 @@ function VolumeBar({ tap }: { tap: Tap }): JSX.Element {
         className={`h-full rounded-full ${percent < LOW_VOLUME_THRESHOLD_PERCENT ? "bg-crit" : "bg-ok"}`}
         style={{ width: `${percent}%` }}
       />
+    </div>
+  );
+}
+
+function WeightRemaining({ tap }: { tap: Tap }): JSX.Element {
+  const [unit, toggle] = useKegUnit(tap.weightDeviceId, tap.tareWeightG !== null);
+  const r = remainingInUnit(tap, unit);
+  return (
+    <div className="flex items-center justify-between text-xs text-dim">
+      <span className="tabular-nums">
+        {r.value} {r.label} remaining of {(tap.fullVolumeMl / 1000).toFixed(1)} L
+      </span>
+      <UnitToggle unit={unit} onToggle={toggle} />
     </div>
   );
 }
@@ -96,9 +111,13 @@ function TapRow({ device, tap }: { device: Device; tap: Tap }): JSX.Element {
 
       <div className="space-y-1">
         <VolumeBar tap={tap} />
-        <p className="text-xs text-dim">
-          {Math.round(tap.remainingVolumeMl)} / {Math.round(tap.fullVolumeMl)} mL remaining
-        </p>
+        {tap.measurementType === "weight" ? (
+          <WeightRemaining tap={tap} />
+        ) : (
+          <p className="text-xs text-dim">
+            {Math.round(tap.remainingVolumeMl)} / {Math.round(tap.fullVolumeMl)} mL remaining
+          </p>
+        )}
       </div>
 
       {tap.kickedAt !== null && (
@@ -151,6 +170,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
   const [weightIndex, setWeightIndex] = useState("0");
   const [tareWeightG, setTareWeightG] = useState("");
   const [fullWeightG, setFullWeightG] = useState("");
+  const [density, setDensity] = useState(String(DEFAULT_BEER_DENSITY_KG_PER_L));
 
   const queryClient = useQueryClient();
   const { telemetryByDevice } = useLiveTelemetry();
@@ -184,7 +204,8 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
               weightDeviceId,
               weightIndex: Number(weightIndex),
               tareWeightG: Number(tareWeightG),
-              fullWeightG: Number(fullWeightG),
+              fullWeightG: fullWeightG ? Number(fullWeightG) : undefined,
+              beerDensityKgPerL: Number(density),
               name,
               style: style || undefined,
               abv: abv ? Number(abv) : undefined,
@@ -350,7 +371,7 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
                 />
               </div>
               <div className="space-y-1">
-                <label className={labelClass}>Empty (tare) weight (g)</label>
+                <label className={labelClass}>Empty keg weight (g)</label>
                 <input
                   type="number"
                   className={inputClass}
@@ -358,14 +379,36 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
                   onChange={(e) => setTareWeightG(e.target.value)}
                   required
                 />
+                <select
+                  aria-label="Keg preset"
+                  className={inputClass}
+                  value=""
+                  onChange={(e) => {
+                    const p = KEG_TARE_PRESETS.find((x) => x.id === e.target.value);
+                    if (p) {
+                      setTareWeightG(String(p.emptyWeightG));
+                      setFullVolumeMl(String(p.volumeMl));
+                    }
+                  }}
+                >
+                  <option value="">Preset (approx.)…</option>
+                  {KEG_TARE_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
-                <label className={labelClass}>Full keg weight (g)</label>
+                <label className={labelClass}>Beer density (kg/L)</label>
                 <input
                   type="number"
+                  step="0.001"
+                  min={0.9}
+                  max={1.2}
                   className={inputClass}
-                  value={fullWeightG}
-                  onChange={(e) => setFullWeightG(e.target.value)}
+                  value={density}
+                  onChange={(e) => setDensity(e.target.value)}
                   required
                 />
               </div>
@@ -388,7 +431,8 @@ export function TapManager({ device, onClose }: { device: Device; onClose: () =>
                   : currentScaleGrams === null
                     ? "sensor fault"
                     : `${Math.round(currentScaleGrams)} g`}{" "}
-                — place an empty keg and note the value for "Empty weight", then a full keg for "Full weight".
+                — with an empty keg on the platform this is its empty weight. Volume is (reading − empty keg) ÷ density;
+                use the beer's FG as density if you know it. You can also tare later from the scale's Keg setup.
               </p>
             )}
           </>

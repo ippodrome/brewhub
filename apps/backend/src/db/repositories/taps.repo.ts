@@ -1,5 +1,10 @@
 import type Database from "better-sqlite3";
-import type { CreateTapRequest, Tap, UpdateTapRequest } from "@brewhub/shared-types";
+import {
+  DEFAULT_BEER_DENSITY_KG_PER_L,
+  type CreateTapRequest,
+  type Tap,
+  type UpdateTapRequest,
+} from "@brewhub/shared-types";
 
 export interface TapRow {
   id: number;
@@ -25,6 +30,8 @@ export interface TapRow {
   created_at: number;
   low_volume_notified: number;
   kicked_at: number | null;
+  beer_density_kg_per_l: number | null;
+  final_gravity_sg: number | null;
 }
 
 function toTap(row: TapRow): Tap {
@@ -48,6 +55,8 @@ function toTap(row: TapRow): Tap {
     remainingVolumeMl: row.remaining_volume_ml,
     createdAt: row.created_at,
     kickedAt: row.kicked_at,
+    beerDensityKgPerL: row.beer_density_kg_per_l,
+    finalGravitySg: row.final_gravity_sg,
   };
 }
 
@@ -131,8 +140,10 @@ export function insertTap(db: Database.Database, deviceId: string, req: CreateTa
           .prepare(
             `INSERT INTO taps
                (device_id, measurement_type, weight_device_id, weight_index, tare_weight_g, full_weight_g,
+                beer_density_kg_per_l, final_gravity_sg,
                 name, style, abv, ibu, notes, image_url, full_volume_ml, remaining_volume_ml)
              VALUES (@deviceId, 'weight', @weightDeviceId, @weightIndex, @tareWeightG, @fullWeightG,
+                     @density, @fg,
                      @name, @style, @abv, @ibu, @notes, @imageUrl, @fullVolumeMl, @fullVolumeMl)`,
           )
           .run({
@@ -140,7 +151,13 @@ export function insertTap(db: Database.Database, deviceId: string, req: CreateTa
             weightDeviceId: req.weightDeviceId,
             weightIndex: req.weightIndex,
             tareWeightG: req.tareWeightG,
-            fullWeightG: req.fullWeightG,
+            // The column is still NOT NULL for weight taps (0006's CHECK); derive
+            // it from density when the client didn't measure a full keg.
+            fullWeightG:
+              req.fullWeightG ??
+              req.tareWeightG + req.fullVolumeMl * (req.finalGravitySg ?? req.beerDensityKgPerL ?? DEFAULT_BEER_DENSITY_KG_PER_L),
+            density: req.beerDensityKgPerL ?? DEFAULT_BEER_DENSITY_KG_PER_L,
+            fg: req.finalGravitySg ?? null,
             name: req.name,
             style: req.style ?? null,
             abv: req.abv ?? null,
@@ -192,7 +209,8 @@ export function updateTapDetails(
   db.prepare(
     `UPDATE taps SET
        weight_device_id = @weightDeviceId, weight_index = @weightIndex, tare_weight_g = @tareWeightG,
-       full_weight_g = @fullWeightG, name = @name, style = @style, abv = @abv, ibu = @ibu,
+       full_weight_g = @fullWeightG, beer_density_kg_per_l = @density, final_gravity_sg = @fg,
+       name = @name, style = @style, abv = @abv, ibu = @ibu,
        notes = @notes, image_url = @imageUrl, full_volume_ml = @fullVolumeMl
      WHERE id = @id`,
   ).run({
@@ -201,6 +219,8 @@ export function updateTapDetails(
     weightIndex: patch.weightIndex ?? current.weight_index,
     tareWeightG: patch.tareWeightG ?? current.tare_weight_g,
     fullWeightG: patch.fullWeightG ?? current.full_weight_g,
+    density: patch.beerDensityKgPerL ?? current.beer_density_kg_per_l,
+    fg: patch.finalGravitySg === undefined ? current.final_gravity_sg : patch.finalGravitySg,
     name: patch.name ?? current.name,
     style: patch.style ?? current.style,
     abv: patch.abv ?? current.abv,
@@ -309,4 +329,14 @@ export function applyWeightReadingUpdate(
   remainingVolumeMl: number,
 ): void {
   db.prepare("UPDATE taps SET remaining_volume_ml = ? WHERE id = ?").run(remainingVolumeMl, tapId);
+}
+
+/** Every weight tap reading from any channel of one keg_scale device. */
+export function listTapsForWeightDevice(db: Database.Database, weightDeviceId: string): Tap[] {
+  return db
+    .prepare<[string], TapRow>(
+      "SELECT * FROM taps WHERE measurement_type = 'weight' AND weight_device_id = ? ORDER BY weight_index ASC, id ASC",
+    )
+    .all(weightDeviceId)
+    .map(toTap);
 }

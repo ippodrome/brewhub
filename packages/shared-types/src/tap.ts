@@ -47,8 +47,20 @@ export const TapSchema = z.object({
   weightIndex: z.number().int().nonnegative().nullable(),
   tareWeightG: z.number().nonnegative().nullable(),
   fullWeightG: z.number().positive().nullable(),
+  /**
+   * Beer density used to turn net weight into volume (kg/L == g/mL).
+   * null on taps created before 1.3.0 — those keep the legacy linear
+   * interpolation between tareWeightG and fullWeightG.
+   */
+  beerDensityKgPerL: z.number().positive().nullable().default(null),
+  /** Measured final gravity of the beer; when set it is used as the density (SG ≈ kg/L). */
+  finalGravitySg: z.number().positive().nullable().default(null),
 });
 export type Tap = z.infer<typeof TapSchema>;
+
+/** Plausible beer density / SG range — anything outside is a typo, not a beer. */
+const BeerDensitySchema = z.number().min(0.9).max(1.2);
+const GravitySgSchema = z.number().min(0.98).max(1.2);
 
 const CreateTapCommonFieldsSchema = {
   name: z.string().min(1),
@@ -73,7 +85,10 @@ export const CreateWeightTapRequestSchema = z.object({
   weightDeviceId: z.string().min(1),
   weightIndex: z.number().int().nonnegative(),
   tareWeightG: z.number().nonnegative(),
-  fullWeightG: z.number().positive(),
+  /** Optional since 1.3.0: derived from tare + fullVolume × density when omitted. */
+  fullWeightG: z.number().positive().optional(),
+  beerDensityKgPerL: BeerDensitySchema.optional(),
+  finalGravitySg: GravitySgSchema.optional(),
   ...CreateTapCommonFieldsSchema,
 });
 export type CreateWeightTapRequest = z.infer<typeof CreateWeightTapRequestSchema>;
@@ -106,6 +121,9 @@ export const UpdateTapRequestSchema = z.object({
   weightIndex: z.number().int().nonnegative().optional(),
   tareWeightG: z.number().nonnegative().optional(),
   fullWeightG: z.number().positive().optional(),
+  beerDensityKgPerL: BeerDensitySchema.optional(),
+  /** null clears a previously entered FG (falls back to beerDensityKgPerL). */
+  finalGravitySg: GravitySgSchema.nullable().optional(),
   resetKeg: z.boolean().optional(),
 });
 export type UpdateTapRequest = z.infer<typeof UpdateTapRequestSchema>;
@@ -160,3 +178,59 @@ export const TapStateSchema = z.object({
   remainingPercent: z.number().int().min(0).max(100),
 });
 export type TapState = z.infer<typeof TapStateSchema>;
+
+/** Default density of finished beer when nothing better is known (≈ FG 1.010). */
+export const DEFAULT_BEER_DENSITY_KG_PER_L = 1.01;
+
+/** FG wins (it's a measurement), then the per-tap density, then the default. */
+export function effectiveBeerDensity(tap: {
+  finalGravitySg?: number | null;
+  beerDensityKgPerL?: number | null;
+}): number {
+  return tap.finalGravitySg ?? tap.beerDensityKgPerL ?? DEFAULT_BEER_DENSITY_KG_PER_L;
+}
+
+export interface KegContents {
+  /** Gross minus empty keg, clamped at 0. */
+  netWeightG: number;
+  volumeMl: number;
+  /** null when no full volume is known. */
+  percent: number | null;
+}
+
+/**
+ * Beer in a keg from a gross scale reading: (gross − empty keg) / density.
+ * Clamped at 0 (an empty keg reading a few grams under its tare is noise,
+ * not negative beer). Not clamped at the top — an overfilled keg is real.
+ */
+export function computeKegContents(inputs: {
+  grossWeightG: number;
+  emptyKegWeightG: number;
+  densityKgPerL: number;
+  fullVolumeMl?: number | null;
+}): KegContents {
+  const netWeightG = Math.max(0, inputs.grossWeightG - inputs.emptyKegWeightG);
+  const volumeMl = inputs.densityKgPerL > 0 ? netWeightG / inputs.densityKgPerL : 0;
+  const full = inputs.fullVolumeMl ?? null;
+  const percent = full && full > 0 ? Math.max(0, Math.min(100, (volumeMl / full) * 100)) : null;
+  return { netWeightG, volumeMl, percent };
+}
+
+/** Tare-now request: capture the latest reading of the tap's scale channel as the empty-keg weight. */
+export const CaptureTareRequestSchema = z.object({}).strict();
+
+/**
+ * Approximate empty weights. Real kegs vary by maker and fittings by a few
+ * hundred grams — these are starting points for the user to edit, never
+ * trusted as measurements.
+ */
+export const KEG_TARE_PRESETS: ReadonlyArray<{ id: string; label: string; emptyWeightG: number; volumeMl: number }> = [
+  { id: "corny-5gal", label: "Cornelius 5 gal ball-lock (~4.0 kg)", emptyWeightG: 4000, volumeMl: 18900 },
+  { id: "corny-19l", label: "Corny 19 L (~4.0 kg)", emptyWeightG: 4000, volumeMl: 19000 },
+  { id: "corny-9l", label: "Corny 9.5 L / 2.5 gal (~3.0 kg)", emptyWeightG: 3000, volumeMl: 9500 },
+  { id: "keykeg-20l", label: "KeyKeg 20 L (~1.2 kg)", emptyWeightG: 1200, volumeMl: 20000 },
+  { id: "keykeg-30l", label: "KeyKeg 30 L (~1.5 kg)", emptyWeightG: 1500, volumeMl: 30000 },
+  { id: "steel-20l", label: "Stainless 20 L euro keg (~7.5 kg)", emptyWeightG: 7500, volumeMl: 20000 },
+  { id: "steel-30l", label: "Stainless 30 L euro keg (~9.5 kg)", emptyWeightG: 9500, volumeMl: 30000 },
+  { id: "steel-50l", label: "Stainless 50 L euro keg (~12.5 kg)", emptyWeightG: 12500, volumeMl: 50000 },
+];
