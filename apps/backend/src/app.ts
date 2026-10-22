@@ -20,10 +20,13 @@ import { sensorsRoutes } from "./routes/sensors.routes.js";
 import { tapsRoutes } from "./routes/taps.routes.js";
 import { wsRoutes } from "./routes/ws.routes.js";
 import { systemRoutes } from "./routes/system.routes.js";
+import { mqttBrokerRoutes } from "./routes/mqtt-broker.routes.js";
 
 export interface AppDeps {
   db: Database.Database;
   config: AppConfig;
+  /** Test/Save timeout for the MQTT broker card (shortened in tests). */
+  mqttTimeoutMs?: number;
   /** Injected in tests to stand in for the updater service. */
   fetchImpl?: typeof fetch;
 }
@@ -71,6 +74,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await fastify.register(sensorsRoutes);
   await fastify.register(tapsRoutes);
   await fastify.register(wsRoutes);
+  await fastify.register(mqttBrokerRoutes, { timeoutMs: deps.mqttTimeoutMs });
   await fastify.register(systemRoutes, { fetchImpl: deps.fetchImpl ?? fetch });
 
   return fastify;

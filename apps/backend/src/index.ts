@@ -5,6 +5,8 @@ import { createDbClient } from "./db/client.js";
 import { runMigrations } from "./db/migrate.js";
 import { buildApp } from "./app.js";
 import { createMqttClient } from "./mqtt/client.js";
+import { MqttConnectionManager } from "./mqtt/manager.js";
+import { redactUrl, resolveMqttConnection } from "./db/repositories/mqtt-broker-settings.repo.js";
 import { startPresenceSweep } from "./mqtt/presence.js";
 import { startProfileScheduler } from "./profiles/scheduler.js";
 import { startTelemetryRollup } from "./telemetry/rollup.js";
@@ -65,10 +67,20 @@ async function main(): Promise<void> {
 
   const app = await buildApp({ db, config });
 
-  const mqttClient = createMqttClient({
-    url: config.MQTT_URL,
-    username: config.MQTT_USERNAME,
-    password: config.MQTT_PASSWORD,
+  // The broker comes from Settings → MQTT when one has been saved, else from
+  // MQTT_URL/MQTT_USERNAME/MQTT_PASSWORD as before. The manager can swap the
+  // underlying client at runtime; `mqttClient` is a stable proxy to it.
+  const mqttManager = new MqttConnectionManager({
+    logger: app.log,
+    factory: (params) => createMqttClientWithHandlers(params),
+    onSwitched: (client) => republishHomeAssistantDiscovery(db, client),
+  });
+  const mqttClient = mqttManager.facade;
+
+  const createMqttClientWithHandlers = (params: { url: string; username?: string; password?: string }): MqttClient => createMqttClient({
+    url: params.url,
+    username: params.username,
+    password: params.password,
     logger: app.log,
     onStatus: (payload) => {
       if (!getDevice(db, payload.deviceId)) {
@@ -199,7 +211,11 @@ async function main(): Promise<void> {
     },
   });
 
+  const initial = resolveMqttConnection(db, config);
+  app.log.info({ url: redactUrl(initial.url) }, "Connecting to MQTT broker");
+  mqttManager.start(initial);
   app.decorate("mqttClient", mqttClient);
+  app.decorate("mqttManager", mqttManager);
   republishHomeAssistantDiscovery(db, mqttClient);
 
   startPresenceSweep({
@@ -236,7 +252,7 @@ async function main(): Promise<void> {
 
   const shutdown = async () => {
     app.log.info("Shutting down...");
-    mqttClient.end(true);
+    await mqttManager.stop();
     await app.close();
     db.close();
     process.exit(0);
