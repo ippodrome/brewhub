@@ -179,10 +179,6 @@ export function UpdateManager(): JSX.Element {
   const [watching, setWatching] = useState(false);
   const [showLog, setShowLog] = useState(false);
 
-  useEffect(() => {
-    if (window.location.hash === "#updates") document.getElementById("updates")?.scrollIntoView({ block: "start" });
-  }, []);
-
   const configured = version.data?.updaterConfigured === true;
   const status = useQuery({
     queryKey: ["update-status"],
@@ -225,7 +221,7 @@ export function UpdateManager(): JSX.Element {
   const uiVersion = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
 
   return (
-    <div id="updates" className="card space-y-6 p-6">
+    <div className="card space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h3 className="font-display text-lg font-semibold text-fg">BrewHub application</h3>

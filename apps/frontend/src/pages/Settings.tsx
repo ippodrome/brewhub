@@ -19,7 +19,7 @@ import {
   parseOpenSections,
   sectionFromHash,
   toggleSection,
-  updatesForcedOpen,
+  updatesAttentionKey,
   updatesSummary,
   type SettingsSectionId,
 } from "../lib/settings-sections";
@@ -79,6 +79,13 @@ export function Settings(): JSX.Element {
     retry: false,
   });
 
+  // Open the Updates card once when there is something to act on; the
+  // header still toggles it afterwards.
+  const attention = updatesAttentionKey(check.data, updateStatus.data);
+  useEffect(() => {
+    if (attention) set("updates", true);
+  }, [attention, set]);
+
   return (
     <div className="page max-w-3xl space-y-6">
       <div className="mb-4">
@@ -116,7 +123,6 @@ export function Settings(): JSX.Element {
             : updatesSummary(version.data?.version, check.data, updateStatus.data)
         }
         open={isOpen("updates")}
-        locked={updatesForcedOpen(check.data, updateStatus.data)}
         onToggle={(n) => set("updates", n)}
       >
         <UpdateManager />
