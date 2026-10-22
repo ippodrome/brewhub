@@ -62,7 +62,15 @@ export function updatesSummary(installed: string | undefined, check: UpdateCheck
   return installed ? `Installed ${installed} · up to date` : "Loading…";
 }
 
-/** The Updates card stays open while there is something to act on. */
-export function updatesForcedOpen(check: UpdateCheck | undefined, status: UpdateStatus | undefined): boolean {
-  return status?.state === "running" || check?.updateAvailable === true;
+/**
+ * Something to act on in the Updates card: an update is running or one is
+ * available. Returns a key per situation so Settings can open the card once
+ * when it appears, while the user can still close and reopen it. (1.2.0
+ * pinned the card open and disabled its header instead, which left it
+ * impossible to open by tapping.)
+ */
+export function updatesAttentionKey(check: UpdateCheck | undefined, status: UpdateStatus | undefined): string | null {
+  if (status?.state === "running") return `running:${status.toVersion ?? ""}`;
+  if (check?.updateAvailable) return `available:${check.latest.version}`;
+  return null;
 }

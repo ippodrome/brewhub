@@ -6,7 +6,7 @@ import {
   parseOpenSections,
   sectionFromHash,
   toggleSection,
-  updatesForcedOpen,
+  updatesAttentionKey,
   updatesSummary,
 } from "./settings-sections";
 
@@ -49,12 +49,13 @@ describe("settings sections", () => {
     const b = { id: 1, deviceId: "a", board: "esp32", version: "1", filename: "f", sizeBytes: 1, md5: "x".repeat(32), uploadedAt: 1 };
     expect(firmwareSummary([b, { ...b, id: 2 }] as never)).toBe("2 builds · 1 device");
   });
-  it("summarises updates and forces open when actionable", () => {
+  it("summarises updates and flags them for auto-open when actionable", () => {
     const check = { currentVersion: "1.1.0", latest: { version: "1.2.0" }, updateAvailable: true } as never;
     expect(updatesSummary("1.1.0", check, undefined)).toBe("Update available · 1.2.0");
     expect(updatesSummary("1.1.0", undefined, undefined)).toBe("Installed 1.1.0 · up to date");
-    expect(updatesForcedOpen(check, undefined)).toBe(true);
-    expect(updatesForcedOpen(undefined, { state: "running" } as never)).toBe(true);
-    expect(updatesForcedOpen(undefined, { state: "succeeded" } as never)).toBe(false);
+    expect(updatesAttentionKey(check, undefined)).toBe("available:1.2.0");
+    expect(updatesAttentionKey(undefined, { state: "running", toVersion: "1.2.0" } as never)).toBe("running:1.2.0");
+    expect(updatesAttentionKey(undefined, { state: "succeeded" } as never)).toBeNull();
+    expect(updatesAttentionKey({ updateAvailable: false } as never, undefined)).toBeNull();
   });
 });
